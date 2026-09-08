@@ -7,6 +7,9 @@ const state = {
   selectedId: "",
   view: "home",
   sort: "hot",
+  topic: "all",
+  query: "",
+  editingCommentId: "",
   items: [],
 };
 
@@ -34,6 +37,13 @@ const els = {
   feed: document.querySelector("#feed"),
   detail: document.querySelector("#detail"),
   boardMeta: document.querySelector("#board-meta"),
+  topicBar: document.querySelector("#topic-bar"),
+  search: document.querySelector("#search"),
+  myPosts: document.querySelector("#my-posts"),
+  myComments: document.querySelector("#my-comments"),
+  myPostList: document.querySelector("#my-post-list"),
+  myCommentList: document.querySelector("#my-comment-list"),
+  myPostsBtn: document.querySelector("#my-posts-btn"),
 };
 
 function showError(node, message, ok) {
@@ -98,8 +108,27 @@ function findItem(id) {
   return state.items.find((item) => item.id === id) ?? null;
 }
 
-function sortedItems() {
-  const items = [...state.items];
+function visibleItems() {
+  const query = state.query.trim().toLowerCase();
+  const items = state.items.filter((item) => {
+    if (state.topic === "form" && item.source !== "google") return false;
+    if (state.topic === "app" && item.source === "google") return false;
+    if (state.topic === "mine" && !item.mine) return false;
+    if (/^[0-5]$/.test(state.topic) && Number(item.priority) !== Number(state.topic)) return false;
+    if (!query) return true;
+    const haystack = [
+      item.ask,
+      item.others,
+      item.anonId,
+      item.numberLabel,
+      item.postId,
+      priorityLabel(item.priority),
+      item.source === "google" ? "form google" : "s&e app",
+    ]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(query);
+  });
   if (state.sort === "new") {
     items.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     return items;
@@ -109,6 +138,7 @@ function sortedItems() {
     return items;
   }
   items.sort((a, b) => {
+    if ((b.votes || 0) !== (a.votes || 0)) return (b.votes || 0) - (a.votes || 0);
     if (b.ratingAvg !== a.ratingAvg) return b.ratingAvg - a.ratingAvg;
     return (b.comments?.length || 0) - (a.comments?.length || 0);
   });
@@ -122,6 +152,10 @@ function setView(view) {
   els.viewWrite.classList.toggle("hidden", view !== "write");
   els.viewMe.classList.toggle("hidden", view !== "me");
   els.topicTabs.classList.toggle("hidden", view !== "home");
+  if (els.topicBar) {
+    const topicOpen = view === "home" && document.querySelector('.tab[data-mode="topic"]')?.classList.contains("active");
+    els.topicBar.classList.toggle("hidden", !topicOpen);
+  }
   els.backBtn.classList.toggle("hidden", view === "home");
   document.querySelectorAll(".nav-btn").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === view || (view === "detail" && button.dataset.view === "home"));
@@ -137,6 +171,42 @@ function renderIdentity() {
   if (els.roleLabel) {
     els.roleLabel.textContent = state.isAdmin ? "관리자" : "User";
     els.roleLabel.className = state.isAdmin ? "chip admin" : "chip role";
+  }
+  renderMyActivity();
+}
+
+function myComments() {
+  return state.items.flatMap((item) =>
+    (item.comments || [])
+      .filter((comment) => comment.mine)
+      .map((comment) => ({ ...comment, opinionId: item.id, numberLabel: item.numberLabel, title: titleOf(item) })),
+  );
+}
+
+function renderMyActivity() {
+  const posts = state.items.filter((item) => item.mine);
+  const comments = myComments();
+  if (els.myPosts) els.myPosts.classList.toggle("hidden", !state.anonId);
+  if (els.myComments) els.myComments.classList.toggle("hidden", !state.anonId);
+  if (els.myPostList) {
+    els.myPostList.innerHTML = posts.length
+      ? posts
+          .map(
+            (item) =>
+              `<button type="button" class="me-list-item" data-open="${item.id}"><strong>${escapeHtml(item.numberLabel || "")} ${escapeHtml(titleOf(item))}</strong><span>${escapeHtml(relativeTime(item.createdAt, item.createdAtLabel))} · 댓글 ${(item.comments || []).length} · 공감 ${item.votes || 0}</span></button>`,
+          )
+          .join("")
+      : `<p class="hint">작성한 글이 없습니다.</p>`;
+  }
+  if (els.myCommentList) {
+    els.myCommentList.innerHTML = comments.length
+      ? comments
+          .map(
+            (comment) =>
+              `<button type="button" class="me-list-item" data-open="${comment.opinionId}"><strong>${escapeHtml(comment.body)}</strong><span>${escapeHtml(comment.numberLabel || "")} · ${escapeHtml(comment.title)}</span></button>`,
+          )
+          .join("")
+      : `<p class="hint">작성한 댓글이 없습니다.</p>`;
   }
 }
 
@@ -180,16 +250,20 @@ function renderComments(item) {
   const list = comments.length
     ? comments
         .map((comment) => {
-          const del = comment.canManage
-            ? `<button type="button" class="comment-del" data-comment-id="${comment.id}">삭제</button>`
+          const manage = comment.canManage
+            ? `<button type="button" class="ghost comment-edit-btn" data-comment-id="${comment.id}">수정</button><button type="button" class="comment-del" data-comment-id="${comment.id}">삭제</button>`
             : "";
+          const body =
+            state.editingCommentId === comment.id
+              ? `<form class="comment-edit" data-comment-id="${comment.id}"><input name="body" maxlength="1000" required value="${escapeHtml(comment.body)}" /><button type="submit">저장</button></form>`
+              : `<p>${escapeHtml(comment.body)}</p>`;
           return `<li class="comment">
             <div class="comment-meta">
               <span>${escapeHtml(comment.anonId)}</span>
               <time>${escapeHtml(relativeTime(comment.createdAt, comment.createdAtLabel))}</time>
-              ${del}
+              ${manage}
             </div>
-            <p>${escapeHtml(comment.body)}</p>
+            ${body}
           </li>`;
         })
         .join("")
@@ -199,15 +273,20 @@ function renderComments(item) {
         <input name="body" maxlength="1000" required placeholder="익명 댓글 남기기" />
         <button type="submit">등록</button>
       </form>`
-    : `<p class="hint">로그인하면 댓글과 별점을 남길 수 있습니다.</p>`;
+    : `<p class="hint">로그인하면 댓글, 별점, 공감을 남길 수 있습니다.</p>`;
   return `<div class="comments"><h3 class="subhead">댓글 ${comments.length}</h3><ul>${list}</ul>${form}</div>`;
 }
 
 function renderFeed() {
-  const items = sortedItems();
-  els.boardMeta.textContent = items.length ? `${items.length}개의 익명 게시글` : "아직 게시글이 없습니다.";
+  const items = visibleItems();
+  const label = state.query || state.topic !== "all" ? "검색 결과" : "개의 익명 게시글";
+  els.boardMeta.textContent = items.length
+    ? state.query || state.topic !== "all"
+      ? `${items.length}개 ${label}`
+      : `${items.length}개의 익명 게시글`
+    : "조건에 맞는 게시글이 없습니다.";
   if (!items.length) {
-    els.feed.innerHTML = `<div class="empty">첫 익명 글을 남겨 보세요.</div>`;
+    els.feed.innerHTML = `<div class="empty">${state.items.length ? "다른 토픽이나 검색어를 선택해 보세요." : "첫 익명 글을 남겨 보세요."}</div>`;
     return;
   }
   els.feed.innerHTML = items
@@ -225,6 +304,7 @@ function renderFeed() {
         <h2>${escapeHtml(titleOf(item))}</h2>
         <p class="preview">${escapeHtml(previewOf(item))}</p>
         <div class="eng">
+          <span>공감 ${item.votes || 0}</span>
           <span>★ ${item.ratingCount ? Number(item.ratingAvg).toFixed(1) : "-"}</span>
           <span>댓글 ${comments}</span>
           <span>${escapeHtml(priorityLabel(item.priority))}</span>
@@ -240,18 +320,20 @@ function renderDetail() {
     els.detail.innerHTML = `<div class="empty">글을 찾을 수 없습니다.</div>`;
     return;
   }
+  const voteDisabled = !state.anonId || item.mine || item.voted ? "disabled" : "";
+  const voteClass = item.voted ? "ghost vote-btn on" : "ghost vote-btn";
   const manage = item.canManage
-    ? `<div class="actions">
-        <button type="button" class="ghost edit-btn" data-id="${item.id}">수정</button>
-        <button type="button" class="danger delete-btn" data-id="${item.id}">삭제</button>
-      </div>`
+    ? `<button type="button" class="ghost edit-btn" data-id="${item.id}">수정</button>
+        <button type="button" class="danger delete-btn" data-id="${item.id}">삭제</button>`
     : "";
   els.detail.innerHTML = `
+    <div class="detail">
     <div class="post-top">
       <span class="company">${item.source === "google" ? "Form" : "S&E"}</span>
       <span>${escapeHtml(item.anonId)}</span>
       <span>·</span>
       <span>${escapeHtml(item.createdAtLabel || "")}</span>
+      ${item.updatedAt && item.updatedAt !== item.createdAt ? `<span>· 수정 ${escapeHtml(item.updatedAtLabel || "")}</span>` : ""}
       ${item.mine ? "<span>· 내 글</span>" : ""}
     </div>
     <h1>${escapeHtml(titleOf(item))}</h1>
@@ -259,11 +341,16 @@ function renderDetail() {
     ${item.others ? `<p class="body">${escapeHtml(item.others)}</p>` : ""}
     <div class="eng">
       <span>고유번호 ${escapeHtml(item.numberLabel || "")}</span>
+      <span>${escapeHtml(item.postId || "")}</span>
       <span>${escapeHtml(priorityLabel(item.priority))}</span>
     </div>
     ${renderRating(item)}
-    ${manage}
+    <div class="actions">
+      <button type="button" class="${voteClass}" data-id="${item.id}" ${voteDisabled}>공감 ${item.votes || 0}</button>
+      ${manage}
+    </div>
     ${renderComments(item)}
+    </div>
   `;
 }
 
@@ -357,8 +444,44 @@ els.topicTabs.addEventListener("click", (event) => {
   if (!tab) return;
   if (tab.dataset.sort) state.sort = tab.dataset.sort;
   els.topicTabs.querySelectorAll(".tab").forEach((node) => node.classList.toggle("active", node === tab));
+  if (els.topicBar) els.topicBar.classList.toggle("hidden", tab.dataset.mode !== "topic");
   renderFeed();
 });
+
+if (els.topicBar) {
+  els.topicBar.addEventListener("click", (event) => {
+    const chip = event.target.closest(".chip-tab");
+    if (!chip) return;
+    state.topic = chip.dataset.topic || "all";
+    els.topicBar.querySelectorAll(".chip-tab").forEach((node) => node.classList.toggle("active", node === chip));
+    renderFeed();
+  });
+}
+
+if (els.search) {
+  els.search.addEventListener("input", () => {
+    state.query = els.search.value;
+    renderFeed();
+  });
+}
+
+if (els.myPostsBtn) {
+  els.myPostsBtn.addEventListener("click", () => {
+    state.topic = "mine";
+    state.sort = "new";
+    els.topicTabs.querySelectorAll(".tab").forEach((node) => {
+      node.classList.toggle("active", node.dataset.mode === "topic");
+    });
+    if (els.topicBar) {
+      els.topicBar.classList.remove("hidden");
+      els.topicBar.querySelectorAll(".chip-tab").forEach((node) => {
+        node.classList.toggle("active", node.dataset.topic === "mine");
+      });
+    }
+    setView("home");
+    renderFeed();
+  });
+}
 
 els.logout.addEventListener("click", async () => {
   try {
@@ -367,6 +490,10 @@ els.logout.addEventListener("click", async () => {
     // ignore
   }
   clearSession();
+  state.topic = "all";
+  state.query = "";
+  state.editingCommentId = "";
+  if (els.search) els.search.value = "";
   document.querySelector("#email").value = "";
   fillForm(null);
   showError(els.authError, "");
@@ -460,15 +587,45 @@ function bindBoard(root) {
       await loadOpinions();
       return;
     }
+    const vote = event.target.closest(".vote-btn");
+    if (vote) {
+      if (vote.disabled) return;
+      try {
+        await api(`/api/opinions/${vote.dataset.id}/vote`, { method: "POST" });
+        await loadOpinions();
+      } catch (error) {
+        alert(error.message);
+      }
+      return;
+    }
+    const commentEdit = event.target.closest(".comment-edit-btn");
+    if (commentEdit) {
+      state.editingCommentId = commentEdit.dataset.commentId;
+      renderDetail();
+      return;
+    }
     const commentDel = event.target.closest(".comment-del");
     if (commentDel) {
       if (!window.confirm("이 댓글을 삭제할까요?")) return;
       await api(`/api/comments/${commentDel.dataset.commentId}`, { method: "DELETE" });
+      state.editingCommentId = "";
       await loadOpinions();
     }
   });
 
   root.addEventListener("submit", async (event) => {
+    const editForm = event.target.closest(".comment-edit");
+    if (editForm) {
+      event.preventDefault();
+      const input = editForm.querySelector("input[name='body']");
+      await api(`/api/comments/${editForm.dataset.commentId}`, {
+        method: "PUT",
+        body: JSON.stringify({ body: input.value }),
+      });
+      state.editingCommentId = "";
+      await loadOpinions();
+      return;
+    }
     const form = event.target.closest(".comment-form");
     if (!form) return;
     event.preventDefault();
@@ -484,4 +641,6 @@ function bindBoard(root) {
 
 bindBoard(els.feed);
 bindBoard(els.detail);
+if (els.myPostList) bindBoard(els.myPostList);
+if (els.myCommentList) bindBoard(els.myCommentList);
 restoreSession();

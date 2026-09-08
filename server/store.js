@@ -200,6 +200,14 @@ export function createStore(filePath) {
       await persist();
       return comment;
     },
+    async updateComment(id, body) {
+      const comment = db.comments.find((item) => item.id === id);
+      if (!comment) return null;
+      comment.body = body;
+      comment.updatedAt = new Date().toISOString();
+      await persist();
+      return comment;
+    },
     async deleteComment(id) {
       const index = db.comments.findIndex((comment) => comment.id === id);
       if (index < 0) return false;

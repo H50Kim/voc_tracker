@@ -251,6 +251,35 @@ function addComment(token, opinionId, body) {
   }
 }
 
+function updateComment(token, commentId, body) {
+  var email = requireEmail_(token);
+  var user = upsertUser_(email);
+  var text = sanitizeText_(body, 1000);
+  if (!text) throw new Error("댓글 내용을 입력해 주세요.");
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var rows = readObjects_("Comments");
+    var index = -1;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].id === commentId) {
+        index = i;
+        break;
+      }
+    }
+    if (index < 0) throw new Error("댓글을 찾을 수 없습니다.");
+    if (!isAdmin_(email) && rows[index].emailHash !== user.emailHash) {
+      throw new Error("이 댓글을 수정할 권한이 없습니다.");
+    }
+    rows[index].body = text;
+    rows[index].updatedAt = new Date().toISOString();
+    writeObjects_("Comments", rows);
+    return { ok: true, id: rows[index].id };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function deleteComment(token, commentId) {
   var email = requireEmail_(token);
   var user = upsertUser_(email);

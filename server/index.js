@@ -426,6 +426,25 @@ app.post("/api/opinions/:id/comments", requireUser, async (req, res) => {
   res.status(201).json({ item: publicComment(comment, req.user.id, req.email) });
 });
 
+app.put("/api/comments/:id", requireUser, async (req, res) => {
+  const comment = store.findCommentById(req.params.id);
+  if (!comment) {
+    res.status(404).json({ error: "댓글을 찾을 수 없습니다." });
+    return;
+  }
+  if (!isAdmin(req.email) && comment.userId !== req.user.id) {
+    res.status(403).json({ error: "이 댓글을 수정할 권한이 없습니다." });
+    return;
+  }
+  const body = sanitizeText(req.body?.body, 1000);
+  if (!body) {
+    res.status(400).json({ error: "댓글 내용을 입력해 주세요." });
+    return;
+  }
+  const updated = await store.updateComment(comment.id, body);
+  res.json({ item: publicComment(updated, req.user.id, req.email) });
+});
+
 app.delete("/api/comments/:id", requireUser, async (req, res) => {
   const comment = store.findCommentById(req.params.id);
   if (!comment) {

@@ -1,77 +1,10 @@
 <!DOCTYPE html>
 <html lang="ko">
   <head>
-    <base target="_top" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>VoC</title>
-    <style>
-      :root { --bg:#f2f3f5; --ink:#111; --muted:#6b7280; --card:#fff; --line:#ececec; --yellow:#ffcc00; --warn:#d11a2a; --chip:#f4f5f7; }
-      * { box-sizing: border-box; }
-      html, body { margin: 0; min-height: 100%; background: #d8dbe0; color: var(--ink); font-family: "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif; }
-      .shell { width: min(480px, 100%); min-height: 100vh; margin: 0 auto; background: var(--bg); padding-bottom: 72px; }
-      .app-header { position: sticky; top: 0; z-index: 8; display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: #111; color: #fff; }
-      .brand { display: grid; line-height: 1.15; flex: 1; }
-      .brand strong { font-size: 22px; letter-spacing: -0.04em; color: var(--yellow); }
-      .brand span { font-size: 11px; color: #c9c9c9; }
-      .icon-btn, .write-chip, .nav-btn, .tab, button { border: 0; background: none; font: inherit; cursor: pointer; }
-      .icon-btn { width: 32px; height: 32px; color: #fff; font-size: 28px; line-height: 1; }
-      .write-chip { background: var(--yellow); color: #111; border-radius: 999px; padding: 7px 11px; font-size: 13px; font-weight: 800; }
-      .topic-tabs { position: sticky; top: 56px; z-index: 7; display: flex; gap: 4px; padding: 8px 10px; background: var(--card); border-bottom: 1px solid var(--line); }
-      .tab { flex: 1; min-width: 64px; padding: 8px 6px; border-radius: 999px; color: var(--muted); font-size: 13px; font-weight: 700; }
-      .tab.active { background: #111; color: #fff; }
-      .view { min-height: calc(100vh - 180px); }
-      .hidden { display: none !important; }
-      .feed-count { margin: 0; padding: 10px 16px 0; color: var(--muted); font-size: 12px; }
-      .feed { display: grid; }
-      .empty { margin: 24px 16px; padding: 36px 16px; text-align: center; color: var(--muted); background: var(--card); }
-      .post { display: block; width: 100%; text-align: left; padding: 14px 16px 12px; background: var(--card); border-bottom: 1px solid var(--line); }
-      .post-top, .eng, .comment-meta { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-      .company { background: #111; color: #fff; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 800; }
-      .post h2 { margin: 8px 0 6px; font-size: 16px; line-height: 1.4; }
-      .post p { margin: 0; color: #333; font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
-      .preview { color: #555; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-      .eng { margin-top: 10px; gap: 12px; }
-      .eng span { font-weight: 700; }
-      .detail { background: var(--card); padding: 16px 16px 24px; }
-      .detail h1 { margin: 8px 0 10px; font-size: 20px; }
-      .detail .body { margin: 0 0 16px; white-space: pre-wrap; line-height: 1.7; }
-      .subhead { margin: 16px 0 8px; color: var(--muted); font-size: 13px; }
-      .rating { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 12px; }
-      .stars { display: inline-flex; }
-      .star-btn { padding: 0 1px; color: #d5d5d5; font-size: 22px; line-height: 1; }
-      .star-btn.filled { color: var(--yellow); }
-      .rating-meta { font-size: 12px; color: var(--muted); }
-      .actions { display: flex; gap: 8px; margin: 8px 0 16px; }
-      .actions button, .ghost, .comment-del { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 8px 10px; font-size: 13px; font-weight: 700; }
-      button.danger { background: var(--warn); color: #fff; border-color: var(--warn); }
-      .comments { border-top: 8px solid var(--bg); padding-top: 8px; }
-      .comments ul { list-style: none; margin: 0; padding: 0; }
-      .comment { padding: 12px 0; border-bottom: 1px solid var(--line); }
-      .comment p { margin: 6px 0 0; white-space: pre-wrap; }
-      .comment-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; position: sticky; bottom: 72px; background: var(--card); padding: 10px 0 0; }
-      input, textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 12px; font: inherit; background: #fff; }
-      textarea { resize: vertical; min-height: 88px; }
-      #view-write, #view-me { padding: 16px; }
-      #view-write h1, #view-me h1 { margin: 0 0 8px; font-size: 22px; }
-      .stack { display: grid; gap: 14px; }
-      label, legend { display: grid; gap: 8px; font-weight: 700; font-size: 14px; }
-      .hint { color: var(--muted); line-height: 1.5; font-size: 13px; }
-      .req { color: var(--warn); font-size: 12px; }
-      .priority { border: 0; padding: 0; margin: 0; }
-      .scale { display: flex; flex-wrap: wrap; gap: 8px; }
-      .scale label { display: inline-flex; align-items: center; gap: 4px; font-weight: 500; }
-      #submit-opinion, #auth-form button[type="submit"] { width: 100%; background: #111; color: #fff; border-radius: 10px; padding: 14px; font-weight: 800; }
-      .me-card { background: var(--card); border-radius: 12px; padding: 18px; margin-bottom: 12px; }
-      .me-id { margin: 0 0 8px; font-size: 18px; }
-      .chip { display: inline-block; background: var(--chip); border-radius: 999px; padding: 3px 8px; font-size: 12px; font-weight: 700; }
-      .chip.admin { background: #111; color: var(--yellow); }
-      .error { color: var(--warn); margin: 12px 0 0; }
-      .ok { color: #0b7a3b; margin: 12px 0 0; }
-      .bottom-nav { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: min(480px, 100%); display: grid; grid-template-columns: 1fr 1fr 1fr; background: #fff; border-top: 1px solid var(--line); padding: 6px 8px; }
-      .nav-btn { padding: 10px 6px; color: #888; font-size: 12px; font-weight: 800; }
-      .nav-btn.active, .nav-btn.write { color: #111; }
-    </style>
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <div class="shell">
@@ -83,26 +16,49 @@
         </div>
         <button type="button" id="header-write" class="write-chip">글쓰기</button>
       </header>
+
       <nav class="topic-tabs" id="topic-tabs">
         <button type="button" class="tab active" data-sort="hot">인기</button>
         <button type="button" class="tab" data-sort="new">최신</button>
         <button type="button" class="tab" data-sort="all">전체</button>
-        <button type="button" class="tab" data-topic="all">토픽</button>
+        <button type="button" class="tab" data-mode="topic">토픽</button>
       </nav>
+      <div id="topic-bar" class="topic-bar hidden">
+        <button type="button" class="chip-tab active" data-topic="all">전체</button>
+        <button type="button" class="chip-tab" data-topic="0">Low</button>
+        <button type="button" class="chip-tab" data-topic="1">낮음</button>
+        <button type="button" class="chip-tab" data-topic="2">보통</button>
+        <button type="button" class="chip-tab" data-topic="3">높음</button>
+        <button type="button" class="chip-tab" data-topic="4">매우 높음</button>
+        <button type="button" class="chip-tab" data-topic="5">Super</button>
+        <button type="button" class="chip-tab" data-topic="form">Form</button>
+        <button type="button" class="chip-tab" data-topic="app">S&amp;E</button>
+        <button type="button" class="chip-tab" data-topic="mine">내 글</button>
+      </div>
+
       <main class="stage">
         <section id="view-home" class="view">
+          <label class="search-wrap">
+            <input id="search" type="search" placeholder="글, 익명 ID, 고유번호 검색" />
+          </label>
           <p id="board-meta" class="feed-count"></p>
           <div id="feed" class="feed"></div>
         </section>
-        <section id="view-detail" class="view hidden"><div id="detail"></div></section>
+
+        <section id="view-detail" class="view hidden">
+          <div id="detail"></div>
+        </section>
+
         <section id="view-write" class="view hidden">
           <h1 id="composer-title">글쓰기</h1>
           <p id="composer-hint" class="hint">익명으로 게시됩니다. 이메일은 노출되지 않습니다.</p>
           <form id="opinion-form" class="stack">
-            <label>제목 / Ask S&amp;E Anything <span class="req">필수</span>
+            <label>
+              제목 / Ask S&amp;E Anything <span class="req">필수</span>
               <textarea id="ask" name="ask" rows="6" maxlength="4000" required placeholder="동료들에게 전하고 싶은 의견을 적어 주세요."></textarea>
             </label>
-            <label>추가 내용
+            <label>
+              추가 내용
               <textarea id="others" name="others" rows="3" maxlength="4000" placeholder="선택 사항"></textarea>
             </label>
             <fieldset class="priority">
@@ -120,19 +76,32 @@
           </form>
           <p id="form-error" class="error" hidden></p>
         </section>
+
         <section id="view-me" class="view hidden">
           <h1>내 정보</h1>
           <div id="me-card" class="me-card hidden">
             <p class="me-id">익명 <strong id="anon-label"></strong></p>
             <p id="role-label" class="chip role">User</p>
             <p class="hint">같은 이메일이면 항상 같은 익명 ID가 유지됩니다. 메일 주소는 공개되지 않습니다.</p>
-            <button type="button" id="logout" class="ghost">로그아웃</button>
+            <div class="me-actions">
+              <button type="button" id="my-posts-btn" class="ghost">내 글 보기</button>
+              <button type="button" id="logout" class="ghost">로그아웃</button>
+            </div>
           </div>
+          <section id="my-posts" class="me-card hidden">
+            <h2 class="subhead">내 글</h2>
+            <div id="my-post-list"></div>
+          </section>
+          <section id="my-comments" class="me-card hidden">
+            <h2 class="subhead">내 댓글</h2>
+            <div id="my-comment-list"></div>
+          </section>
           <section id="gate" class="me-card">
             <h2>로그인</h2>
             <p class="hint">이메일로 입장하면 고정 익명 ID가 부여됩니다.</p>
             <form id="auth-form" class="stack">
-              <label>Email <span class="req">필수</span>
+              <label>
+                Email <span class="req">필수</span>
                 <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
               </label>
               <button type="submit">로그인</button>
@@ -141,6 +110,7 @@
           </section>
         </section>
       </main>
+
       <nav class="bottom-nav">
         <button type="button" class="nav-btn active" data-view="home">홈</button>
         <button type="button" class="nav-btn write" data-view="write">글쓰기</button>
@@ -148,268 +118,654 @@
       </nav>
     </div>
     <script>
-      var state = {
-        token: sessionStorage.getItem("voc_token") || "",
-        anonId: "", role: "", isAdmin: false, editingId: "", selectedId: "", view: "home", sort: "hot", items: []
-      };
-      var els = {
-        backBtn: document.getElementById("back-btn"),
-        headerWrite: document.getElementById("header-write"),
-        topicTabs: document.getElementById("topic-tabs"),
-        viewHome: document.getElementById("view-home"),
-        viewDetail: document.getElementById("view-detail"),
-        viewWrite: document.getElementById("view-write"),
-        viewMe: document.getElementById("view-me"),
-        gate: document.getElementById("gate"),
-        meCard: document.getElementById("me-card"),
-        anonLabel: document.getElementById("anon-label"),
-        roleLabel: document.getElementById("role-label"),
-        logout: document.getElementById("logout"),
-        composerTitle: document.getElementById("composer-title"),
-        composerHint: document.getElementById("composer-hint"),
-        submit: document.getElementById("submit-opinion"),
-        authForm: document.getElementById("auth-form"),
-        opinionForm: document.getElementById("opinion-form"),
-        authError: document.getElementById("auth-error"),
-        formError: document.getElementById("form-error"),
-        feed: document.getElementById("feed"),
-        detail: document.getElementById("detail"),
-        boardMeta: document.getElementById("board-meta")
-      };
+const state = {
+  token: sessionStorage.getItem("voc_token") || "",
+  anonId: "",
+  role: "",
+  isAdmin: false,
+  editingId: "",
+  selectedId: "",
+  view: "home",
+  sort: "hot",
+  topic: "all",
+  query: "",
+  editingCommentId: "",
+  items: [],
+};
 
-      function run(name) {
-        var args = Array.prototype.slice.call(arguments, 1);
-        return new Promise(function (resolve, reject) {
-          google.script.run.withSuccessHandler(resolve).withFailureHandler(function (error) {
-            reject(new Error(error && error.message ? error.message : String(error)));
-          })[name].apply(null, args);
-        });
-      }
-      function showMessage(node, message, ok) {
-        if (!message) { node.hidden = true; node.textContent = ""; node.className = "error"; return; }
-        node.hidden = false; node.className = ok ? "ok" : "error"; node.textContent = message;
-      }
-      function priorityLabel(value) {
-        var labels = ["Low", "낮음", "보통", "높음", "매우 높음", "Super"];
-        return labels[value] != null ? labels[value] : String(value);
-      }
-      function escapeHtml(value) {
-        return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-      }
-      function relativeTime(iso, fallback) {
-        var date = new Date(iso);
-        if (isNaN(date.getTime())) return fallback || "";
-        var diff = Date.now() - date.getTime();
-        if (diff < 60000) return "방금";
-        if (diff < 3600000) return Math.floor(diff / 60000) + "분 전";
-        if (diff < 86400000) return Math.floor(diff / 3600000) + "시간 전";
-        if (diff < 86400000 * 7) return Math.floor(diff / 86400000) + "일 전";
-        return fallback || "";
-      }
-      function titleOf(item) { return String(item.ask || "").split("\n")[0].trim() || "제목 없음"; }
-      function previewOf(item) { return String(item.ask || "") + (item.others ? "\n" + item.others : ""); }
-      function findItem(id) { return state.items.filter(function (item) { return item.id === id; })[0] || null; }
-      function sortedItems() {
-        var items = state.items.slice();
-        if (state.sort === "new") { items.sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); }); return items; }
-        if (state.sort === "all") { items.sort(function (a, b) { return (a.number || 0) - (b.number || 0); }); return items; }
-        items.sort(function (a, b) {
-          if (b.ratingAvg !== a.ratingAvg) return b.ratingAvg - a.ratingAvg;
-          return (b.comments || []).length - (a.comments || []).length;
-        });
-        return items;
-      }
-      function setView(view) {
-        state.view = view;
-        els.viewHome.classList.toggle("hidden", view !== "home");
-        els.viewDetail.classList.toggle("hidden", view !== "detail");
-        els.viewWrite.classList.toggle("hidden", view !== "write");
-        els.viewMe.classList.toggle("hidden", view !== "me");
-        els.topicTabs.classList.toggle("hidden", view !== "home");
-        els.backBtn.classList.toggle("hidden", view === "home");
-        var buttons = document.querySelectorAll(".nav-btn");
-        for (var i = 0; i < buttons.length; i++) {
-          var match = buttons[i].getAttribute("data-view") === view || (view === "detail" && buttons[i].getAttribute("data-view") === "home");
-          buttons[i].classList.toggle("active", match);
-        }
-        window.scrollTo(0, 0);
-      }
-      function renderIdentity() {
-        var loggedIn = Boolean(state.anonId);
-        els.meCard.classList.toggle("hidden", !loggedIn);
-        els.gate.classList.toggle("hidden", loggedIn);
-        els.anonLabel.textContent = state.anonId || "";
-        els.roleLabel.textContent = state.isAdmin ? "관리자" : "User";
-        els.roleLabel.className = state.isAdmin ? "chip admin" : "chip role";
-      }
-      function fillForm(item) {
-        document.getElementById("ask").value = item && item.ask ? item.ask : "";
-        document.getElementById("others").value = item && item.others ? item.others : "";
-        var priority = String(item && item.priority != null ? item.priority : 2);
-        var radio = document.querySelector('input[name="priority"][value="' + priority + '"]');
-        if (radio) radio.checked = true;
-      }
-      function renderComposer() {
-        var editing = findItem(state.editingId);
-        if (editing) {
-          els.composerTitle.textContent = "글 수정 · " + editing.numberLabel;
-          els.composerHint.textContent = editing.anonId + " · " + editing.createdAtLabel;
-          els.submit.textContent = "수정 저장";
-        } else {
-          els.composerTitle.textContent = "글쓰기";
-          els.composerHint.textContent = "익명으로 게시됩니다. 이메일은 노출되지 않습니다.";
-          els.submit.textContent = "익명으로 게시";
-        }
-      }
-      function renderRating(item) {
-        var disabled = !state.anonId || item.mine ? "disabled" : "";
-        var buttons = "";
-        for (var i = 1; i <= 5; i++) {
-          var filled = i <= Math.round(item.ratingAvg || 0) ? " filled" : "";
-          if (item.myRating && i <= item.myRating) filled = " filled mine";
-          buttons += '<button type="button" class="star-btn' + filled + '" data-id="' + item.id + '" data-stars="' + i + '" ' + disabled + ">" + "★</button>";
-        }
-        var summary = item.ratingCount ? Number(item.ratingAvg).toFixed(1) + " · " + item.ratingCount + "명" : "별점 없음";
-        if (item.myRating) summary += " · 내 별점 " + item.myRating;
-        return '<div class="rating"><div class="stars">' + buttons + '</div><span class="rating-meta">' + summary + "</span></div>";
-      }
-      function renderComments(item) {
-        var comments = item.comments || [];
-        var list = comments.length ? comments.map(function (comment) {
-          var del = comment.canManage ? '<button type="button" class="comment-del" data-comment-id="' + comment.id + '">삭제</button>' : "";
-          return '<li class="comment"><div class="comment-meta"><span>' + escapeHtml(comment.anonId) + "</span><time>" + escapeHtml(relativeTime(comment.createdAt, comment.createdAtLabel)) + "</time>" + del + "</div><p>" + escapeHtml(comment.body) + "</p></li>";
-        }).join("") : '<li class="hint">첫 댓글을 남겨 보세요.</li>';
-        var form = state.anonId
-          ? '<form class="comment-form" data-id="' + item.id + '"><input name="body" maxlength="1000" required placeholder="익명 댓글 남기기" /><button type="submit">등록</button></form>'
-          : '<p class="hint">로그인하면 댓글과 별점을 남길 수 있습니다.</p>';
-        return '<div class="comments"><h3 class="subhead">댓글 ' + comments.length + "</h3><ul>" + list + "</ul>" + form + "</div>";
-      }
-      function renderFeed() {
-        var items = sortedItems();
-        els.boardMeta.textContent = items.length ? items.length + "개의 익명 게시글" : "아직 게시글이 없습니다.";
-        if (!items.length) { els.feed.innerHTML = '<div class="empty">첫 익명 글을 남겨 보세요.</div>'; return; }
-        els.feed.innerHTML = items.map(function (item) {
-          return '<button type="button" class="post" data-open="' + item.id + '"><div class="post-top"><span class="company">' + (item.source === "google" ? "Form" : "S&amp;E") + "</span><span>" + escapeHtml(item.anonId) + "</span><span>·</span><span>" + escapeHtml(relativeTime(item.createdAt, item.createdAtLabel)) + "</span><span>·</span><span>" + escapeHtml(item.numberLabel || "") + '</span></div><h2>' + escapeHtml(titleOf(item)) + '</h2><p class="preview">' + escapeHtml(previewOf(item)) + '</p><div class="eng"><span>★ ' + (item.ratingCount ? Number(item.ratingAvg).toFixed(1) : "-") + "</span><span>댓글 " + ((item.comments || []).length) + "</span><span>" + escapeHtml(priorityLabel(item.priority)) + "</span></div></button>";
-        }).join("");
-      }
-      function renderDetail() {
-        var item = findItem(state.selectedId);
-        if (!item) { els.detail.innerHTML = '<div class="empty">글을 찾을 수 없습니다.</div>'; return; }
-        var manage = item.canManage ? '<div class="actions"><button type="button" class="ghost edit-btn" data-id="' + item.id + '">수정</button><button type="button" class="danger delete-btn" data-id="' + item.id + '">삭제</button></div>' : "";
-        els.detail.innerHTML = '<div class="post-top"><span class="company">' + (item.source === "google" ? "Form" : "S&amp;E") + "</span><span>" + escapeHtml(item.anonId) + "</span><span>·</span><span>" + escapeHtml(item.createdAtLabel || "") + "</span>" + (item.mine ? "<span>· 내 글</span>" : "") + "</div><h1>" + escapeHtml(titleOf(item)) + '</h1><p class="body">' + escapeHtml(item.ask || "") + "</p>" + (item.others ? '<p class="body">' + escapeHtml(item.others) + "</p>" : "") + '<div class="eng"><span>고유번호 ' + escapeHtml(item.numberLabel || "") + "</span><span>" + escapeHtml(priorityLabel(item.priority)) + "</span></div>" + renderRating(item) + manage + renderComments(item);
-      }
-      function renderAll() { renderIdentity(); renderComposer(); renderFeed(); if (state.view === "detail") renderDetail(); }
-      function openDetail(id) { state.selectedId = id; setView("detail"); renderDetail(); }
-      function startCreate() {
-        if (!state.anonId) { setView("me"); return; }
-        state.editingId = ""; fillForm(null); showMessage(els.formError, ""); renderComposer(); setView("write");
-      }
-      function startEdit(id) {
-        var item = findItem(id);
-        if (!item || !item.canManage) return;
-        state.editingId = item.id; fillForm(item); showMessage(els.formError, ""); renderComposer(); setView("write");
-      }
-      function applySession(data) {
-        state.token = data.token || "";
-        state.anonId = data.anonId || "";
-        state.role = data.role || "";
-        state.isAdmin = Boolean(data.isAdmin);
-        if (state.token) sessionStorage.setItem("voc_token", state.token);
-        else sessionStorage.removeItem("voc_token");
-        if (data.googleEmail) document.getElementById("email").value = data.googleEmail;
-        renderIdentity();
-      }
-      function loadOpinions() {
-        return run("listOpinions", state.token).then(function (data) {
-          state.items = data.items || [];
-          if (state.editingId && !findItem(state.editingId)) state.editingId = "";
-          if (state.selectedId && !findItem(state.selectedId) && state.view === "detail") setView("home");
-          renderAll();
-        });
-      }
-      els.headerWrite.addEventListener("click", startCreate);
-      els.backBtn.addEventListener("click", function () { setView("home"); });
-      document.querySelectorAll(".nav-btn").forEach(function (button) {
-        button.addEventListener("click", function () {
-          var view = button.getAttribute("data-view");
-          if (view === "write") startCreate();
-          else setView(view);
-        });
+const els = {
+  backBtn: document.querySelector("#back-btn"),
+  headerWrite: document.querySelector("#header-write"),
+  topicTabs: document.querySelector("#topic-tabs"),
+  viewHome: document.querySelector("#view-home"),
+  viewDetail: document.querySelector("#view-detail"),
+  viewWrite: document.querySelector("#view-write"),
+  viewMe: document.querySelector("#view-me"),
+  gate: document.querySelector("#gate"),
+  meCard: document.querySelector("#me-card"),
+  identity: document.querySelector("#me-card"),
+  anonLabel: document.querySelector("#anon-label"),
+  roleLabel: document.querySelector("#role-label"),
+  logout: document.querySelector("#logout"),
+  composerTitle: document.querySelector("#composer-title"),
+  composerHint: document.querySelector("#composer-hint"),
+  submit: document.querySelector("#submit-opinion"),
+  authForm: document.querySelector("#auth-form"),
+  opinionForm: document.querySelector("#opinion-form"),
+  authError: document.querySelector("#auth-error"),
+  formError: document.querySelector("#form-error"),
+  feed: document.querySelector("#feed"),
+  detail: document.querySelector("#detail"),
+  boardMeta: document.querySelector("#board-meta"),
+  topicBar: document.querySelector("#topic-bar"),
+  search: document.querySelector("#search"),
+  myPosts: document.querySelector("#my-posts"),
+  myComments: document.querySelector("#my-comments"),
+  myPostList: document.querySelector("#my-post-list"),
+  myCommentList: document.querySelector("#my-comment-list"),
+  myPostsBtn: document.querySelector("#my-posts-btn"),
+};
+
+function showError(node, message, ok) {
+  if (!node) return;
+  if (!message) {
+    node.hidden = true;
+    node.textContent = "";
+    node.className = "error";
+    return;
+  }
+  node.hidden = false;
+  node.className = ok ? "ok" : "error";
+  node.textContent = message;
+}
+
+function run(name) {
+  const args = Array.prototype.slice.call(arguments, 1);
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler((error) => {
+      reject(new Error(error && error.message ? error.message : String(error)));
+    })[name].apply(null, args);
+  });
+}
+
+function priorityLabel(value) {
+  const labels = ["Low", "낮음", "보통", "높음", "매우 높음", "Super"];
+  return labels[value] ?? String(value);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function relativeTime(iso, fallback) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return fallback || "";
+  const diff = Date.now() - date.getTime();
+  if (diff < 60_000) return "방금";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
+  if (diff < 86_400_000 * 7) return `${Math.floor(diff / 86_400_000)}일 전`;
+  return fallback || "";
+}
+
+function titleOf(item) {
+  return String(item.ask || "").split("\n")[0].trim() || "제목 없음";
+}
+
+function previewOf(item) {
+  const extra = item.others ? `\n${item.others}` : "";
+  return `${item.ask || ""}${extra}`.trim();
+}
+
+function findItem(id) {
+  return state.items.find((item) => item.id === id) ?? null;
+}
+
+function visibleItems() {
+  const query = state.query.trim().toLowerCase();
+  const items = state.items.filter((item) => {
+    if (state.topic === "form" && item.source !== "google") return false;
+    if (state.topic === "app" && item.source === "google") return false;
+    if (state.topic === "mine" && !item.mine) return false;
+    if (/^[0-5]$/.test(state.topic) && Number(item.priority) !== Number(state.topic)) return false;
+    if (!query) return true;
+    const haystack = [
+      item.ask,
+      item.others,
+      item.anonId,
+      item.numberLabel,
+      item.postId,
+      priorityLabel(item.priority),
+      item.source === "google" ? "form google" : "s&e app",
+    ]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(query);
+  });
+  if (state.sort === "new") {
+    items.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    return items;
+  }
+  if (state.sort === "all") {
+    items.sort((a, b) => (a.number || 0) - (b.number || 0));
+    return items;
+  }
+  items.sort((a, b) => {
+    if ((b.votes || 0) !== (a.votes || 0)) return (b.votes || 0) - (a.votes || 0);
+    if (b.ratingAvg !== a.ratingAvg) return b.ratingAvg - a.ratingAvg;
+    return (b.comments?.length || 0) - (a.comments?.length || 0);
+  });
+  return items;
+}
+
+function setView(view) {
+  state.view = view;
+  els.viewHome.classList.toggle("hidden", view !== "home");
+  els.viewDetail.classList.toggle("hidden", view !== "detail");
+  els.viewWrite.classList.toggle("hidden", view !== "write");
+  els.viewMe.classList.toggle("hidden", view !== "me");
+  els.topicTabs.classList.toggle("hidden", view !== "home");
+  if (els.topicBar) {
+    const topicOpen = view === "home" && document.querySelector('.tab[data-mode="topic"]')?.classList.contains("active");
+    els.topicBar.classList.toggle("hidden", !topicOpen);
+  }
+  els.backBtn.classList.toggle("hidden", view === "home");
+  document.querySelectorAll(".nav-btn").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === view || (view === "detail" && button.dataset.view === "home"));
+  });
+  window.scrollTo(0, 0);
+}
+
+function renderIdentity() {
+  const loggedIn = Boolean(state.anonId);
+  els.meCard.classList.toggle("hidden", !loggedIn);
+  els.gate.classList.toggle("hidden", loggedIn);
+  if (els.anonLabel) els.anonLabel.textContent = state.anonId || "";
+  if (els.roleLabel) {
+    els.roleLabel.textContent = state.isAdmin ? "관리자" : "User";
+    els.roleLabel.className = state.isAdmin ? "chip admin" : "chip role";
+  }
+  renderMyActivity();
+}
+
+function myComments() {
+  return state.items.flatMap((item) =>
+    (item.comments || [])
+      .filter((comment) => comment.mine)
+      .map((comment) => ({ ...comment, opinionId: item.id, numberLabel: item.numberLabel, title: titleOf(item) })),
+  );
+}
+
+function renderMyActivity() {
+  const posts = state.items.filter((item) => item.mine);
+  const comments = myComments();
+  if (els.myPosts) els.myPosts.classList.toggle("hidden", !state.anonId);
+  if (els.myComments) els.myComments.classList.toggle("hidden", !state.anonId);
+  if (els.myPostList) {
+    els.myPostList.innerHTML = posts.length
+      ? posts
+          .map(
+            (item) =>
+              `<button type="button" class="me-list-item" data-open="${item.id}"><strong>${escapeHtml(item.numberLabel || "")} ${escapeHtml(titleOf(item))}</strong><span>${escapeHtml(relativeTime(item.createdAt, item.createdAtLabel))} · 댓글 ${(item.comments || []).length} · 공감 ${item.votes || 0}</span></button>`,
+          )
+          .join("")
+      : `<p class="hint">작성한 글이 없습니다.</p>`;
+  }
+  if (els.myCommentList) {
+    els.myCommentList.innerHTML = comments.length
+      ? comments
+          .map(
+            (comment) =>
+              `<button type="button" class="me-list-item" data-open="${comment.opinionId}"><strong>${escapeHtml(comment.body)}</strong><span>${escapeHtml(comment.numberLabel || "")} · ${escapeHtml(comment.title)}</span></button>`,
+          )
+          .join("")
+      : `<p class="hint">작성한 댓글이 없습니다.</p>`;
+  }
+}
+
+function fillForm(item) {
+  document.querySelector("#ask").value = item?.ask ?? "";
+  document.querySelector("#others").value = item?.others ?? "";
+  const priority = String(item?.priority ?? 2);
+  const radio = document.querySelector(`input[name="priority"][value="${priority}"]`);
+  if (radio) radio.checked = true;
+}
+
+function renderComposer() {
+  const editing = findItem(state.editingId);
+  if (editing) {
+    els.composerTitle.textContent = `글 수정 · ${editing.numberLabel}`;
+    els.composerHint.textContent = `${editing.anonId} · ${editing.createdAtLabel}`;
+    els.submit.textContent = "수정 저장";
+  } else {
+    els.composerTitle.textContent = "글쓰기";
+    els.composerHint.textContent = "익명으로 게시됩니다. 이메일은 노출되지 않습니다.";
+    els.submit.textContent = "익명으로 게시";
+  }
+}
+
+function renderRating(item) {
+  const disabled = !state.anonId || item.mine ? "disabled" : "";
+  const buttons = [1, 2, 3, 4, 5]
+    .map((stars) => {
+      let filled = stars <= Math.round(item.ratingAvg || 0) ? " filled" : "";
+      if (item.myRating && stars <= item.myRating) filled = " filled mine";
+      return `<button type="button" class="star-btn${filled}" data-id="${item.id}" data-stars="${stars}" ${disabled} aria-label="${stars}점">★</button>`;
+    })
+    .join("");
+  let summary = item.ratingCount ? `${Number(item.ratingAvg).toFixed(1)} · ${item.ratingCount}명` : "별점 없음";
+  if (item.myRating) summary += ` · 내 별점 ${item.myRating}`;
+  return `<div class="rating"><div class="stars">${buttons}</div><span class="rating-meta">${summary}</span></div>`;
+}
+
+function renderComments(item) {
+  const comments = item.comments || [];
+  const list = comments.length
+    ? comments
+        .map((comment) => {
+          const manage = comment.canManage
+            ? `<button type="button" class="ghost comment-edit-btn" data-comment-id="${comment.id}">수정</button><button type="button" class="comment-del" data-comment-id="${comment.id}">삭제</button>`
+            : "";
+          const body =
+            state.editingCommentId === comment.id
+              ? `<form class="comment-edit" data-comment-id="${comment.id}"><input name="body" maxlength="1000" required value="${escapeHtml(comment.body)}" /><button type="submit">저장</button></form>`
+              : `<p>${escapeHtml(comment.body)}</p>`;
+          return `<li class="comment">
+            <div class="comment-meta">
+              <span>${escapeHtml(comment.anonId)}</span>
+              <time>${escapeHtml(relativeTime(comment.createdAt, comment.createdAtLabel))}</time>
+              ${manage}
+            </div>
+            ${body}
+          </li>`;
+        })
+        .join("")
+    : `<li class="hint">첫 댓글을 남겨 보세요.</li>`;
+  const form = state.anonId
+    ? `<form class="comment-form" data-id="${item.id}">
+        <input name="body" maxlength="1000" required placeholder="익명 댓글 남기기" />
+        <button type="submit">등록</button>
+      </form>`
+    : `<p class="hint">로그인하면 댓글, 별점, 공감을 남길 수 있습니다.</p>`;
+  return `<div class="comments"><h3 class="subhead">댓글 ${comments.length}</h3><ul>${list}</ul>${form}</div>`;
+}
+
+function renderFeed() {
+  const items = visibleItems();
+  const label = state.query || state.topic !== "all" ? "검색 결과" : "개의 익명 게시글";
+  els.boardMeta.textContent = items.length
+    ? state.query || state.topic !== "all"
+      ? `${items.length}개 ${label}`
+      : `${items.length}개의 익명 게시글`
+    : "조건에 맞는 게시글이 없습니다.";
+  if (!items.length) {
+    els.feed.innerHTML = `<div class="empty">${state.items.length ? "다른 토픽이나 검색어를 선택해 보세요." : "첫 익명 글을 남겨 보세요."}</div>`;
+    return;
+  }
+  els.feed.innerHTML = items
+    .map((item) => {
+      const comments = item.comments?.length || 0;
+      return `<button type="button" class="post" data-open="${item.id}">
+        <div class="post-top">
+          <span class="company">${item.source === "google" ? "Form" : "S&E"}</span>
+          <span>${escapeHtml(item.anonId)}</span>
+          <span>·</span>
+          <span>${escapeHtml(relativeTime(item.createdAt, item.createdAtLabel))}</span>
+          <span>·</span>
+          <span>${escapeHtml(item.numberLabel || "")}</span>
+        </div>
+        <h2>${escapeHtml(titleOf(item))}</h2>
+        <p class="preview">${escapeHtml(previewOf(item))}</p>
+        <div class="eng">
+          <span>공감 ${item.votes || 0}</span>
+          <span>★ ${item.ratingCount ? Number(item.ratingAvg).toFixed(1) : "-"}</span>
+          <span>댓글 ${comments}</span>
+          <span>${escapeHtml(priorityLabel(item.priority))}</span>
+        </div>
+      </button>`;
+    })
+    .join("");
+}
+
+function renderDetail() {
+  const item = findItem(state.selectedId);
+  if (!item) {
+    els.detail.innerHTML = `<div class="empty">글을 찾을 수 없습니다.</div>`;
+    return;
+  }
+  const voteDisabled = !state.anonId || item.mine || item.voted ? "disabled" : "";
+  const voteClass = item.voted ? "ghost vote-btn on" : "ghost vote-btn";
+  const manage = item.canManage
+    ? `<button type="button" class="ghost edit-btn" data-id="${item.id}">수정</button>
+        <button type="button" class="danger delete-btn" data-id="${item.id}">삭제</button>`
+    : "";
+  els.detail.innerHTML = `
+    <div class="detail">
+    <div class="post-top">
+      <span class="company">${item.source === "google" ? "Form" : "S&E"}</span>
+      <span>${escapeHtml(item.anonId)}</span>
+      <span>·</span>
+      <span>${escapeHtml(item.createdAtLabel || "")}</span>
+      ${item.updatedAt && item.updatedAt !== item.createdAt ? `<span>· 수정 ${escapeHtml(item.updatedAtLabel || "")}</span>` : ""}
+      ${item.mine ? "<span>· 내 글</span>" : ""}
+    </div>
+    <h1>${escapeHtml(titleOf(item))}</h1>
+    <p class="body">${escapeHtml(item.ask || "")}</p>
+    ${item.others ? `<p class="body">${escapeHtml(item.others)}</p>` : ""}
+    <div class="eng">
+      <span>고유번호 ${escapeHtml(item.numberLabel || "")}</span>
+      <span>${escapeHtml(item.postId || "")}</span>
+      <span>${escapeHtml(priorityLabel(item.priority))}</span>
+    </div>
+    ${renderRating(item)}
+    <div class="actions">
+      <button type="button" class="${voteClass}" data-id="${item.id}" ${voteDisabled}>공감 ${item.votes || 0}</button>
+      ${manage}
+    </div>
+    ${renderComments(item)}
+    </div>
+  `;
+}
+
+function renderAll() {
+  renderIdentity();
+  renderComposer();
+  renderFeed();
+  if (state.view === "detail") renderDetail();
+}
+
+function openDetail(id) {
+  state.selectedId = id;
+  setView("detail");
+  renderDetail();
+}
+
+function startCreate() {
+  if (!state.anonId) {
+    setView("me");
+    return;
+  }
+  state.editingId = "";
+  fillForm(null);
+  showError(els.formError, "");
+  renderComposer();
+  setView("write");
+}
+
+function startEdit(id) {
+  const item = findItem(id);
+  if (!item || !item.canManage) return;
+  state.editingId = item.id;
+  fillForm(item);
+  showError(els.formError, "");
+  renderComposer();
+  setView("write");
+}
+
+function clearSession() {
+  state.token = "";
+  state.anonId = "";
+  state.role = "";
+  state.isAdmin = false;
+  state.editingId = "";
+  sessionStorage.removeItem("voc_token");
+}
+
+async function loadOpinions() {
+  const data = await run("listOpinions", state.token);
+  state.items = data.items || [];
+  if (state.editingId && !findItem(state.editingId)) state.editingId = "";
+  if (state.selectedId && !findItem(state.selectedId) && state.view === "detail") setView("home");
+  renderAll();
+}
+
+function applySessionFromBootstrap(data) {
+  state.token = data.token || "";
+  state.anonId = data.anonId || "";
+  state.role = data.role || "";
+  state.isAdmin = Boolean(data.isAdmin);
+  if (state.token) sessionStorage.setItem("voc_token", state.token);
+  else sessionStorage.removeItem("voc_token");
+  if (data.googleEmail) document.querySelector("#email").value = data.googleEmail;
+  renderIdentity();
+}
+async function restoreSession() {
+  setView("home");
+  if (!state.token) {
+    renderAll();
+    await loadOpinions();
+    return;
+  }
+  try {
+    const me = await run("me", state.token);
+    state.anonId = me.anonId;
+    state.role = me.role || "";
+    state.isAdmin = Boolean(me.isAdmin);
+    await loadOpinions();
+  } catch {
+    clearSession();
+    await loadOpinions();
+  }
+}
+
+els.headerWrite.addEventListener("click", startCreate);
+els.backBtn.addEventListener("click", () => setView("home"));
+
+document.querySelectorAll(".nav-btn").forEach((button) => {
+  button.addEventListener("click", () => {
+    const view = button.dataset.view;
+    if (view === "write") {
+      startCreate();
+      return;
+    }
+    setView(view);
+  });
+});
+
+els.topicTabs.addEventListener("click", (event) => {
+  const tab = event.target.closest(".tab");
+  if (!tab) return;
+  if (tab.dataset.sort) state.sort = tab.dataset.sort;
+  els.topicTabs.querySelectorAll(".tab").forEach((node) => node.classList.toggle("active", node === tab));
+  if (els.topicBar) els.topicBar.classList.toggle("hidden", tab.dataset.mode !== "topic");
+  renderFeed();
+});
+
+if (els.topicBar) {
+  els.topicBar.addEventListener("click", (event) => {
+    const chip = event.target.closest(".chip-tab");
+    if (!chip) return;
+    state.topic = chip.dataset.topic || "all";
+    els.topicBar.querySelectorAll(".chip-tab").forEach((node) => node.classList.toggle("active", node === chip));
+    renderFeed();
+  });
+}
+
+if (els.search) {
+  els.search.addEventListener("input", () => {
+    state.query = els.search.value;
+    renderFeed();
+  });
+}
+
+if (els.myPostsBtn) {
+  els.myPostsBtn.addEventListener("click", () => {
+    state.topic = "mine";
+    state.sort = "new";
+    els.topicTabs.querySelectorAll(".tab").forEach((node) => {
+      node.classList.toggle("active", node.dataset.mode === "topic");
+    });
+    if (els.topicBar) {
+      els.topicBar.classList.remove("hidden");
+      els.topicBar.querySelectorAll(".chip-tab").forEach((node) => {
+        node.classList.toggle("active", node.dataset.topic === "mine");
       });
-      els.topicTabs.addEventListener("click", function (event) {
-        var tab = event.target.closest(".tab");
-        if (!tab) return;
-        if (tab.getAttribute("data-sort")) state.sort = tab.getAttribute("data-sort");
-        var tabs = els.topicTabs.querySelectorAll(".tab");
-        for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle("active", tabs[i] === tab);
-        renderFeed();
-      });
-      els.logout.addEventListener("click", function () {
-        run("logout", state.token).catch(function () {});
-        state.token = ""; state.anonId = ""; state.role = ""; state.isAdmin = false; state.editingId = "";
-        sessionStorage.removeItem("voc_token");
-        document.getElementById("email").value = "";
-        fillForm(null); showMessage(els.authError, ""); showMessage(els.formError, "");
-        renderAll(); loadOpinions(); setView("me");
-      });
-      els.authForm.addEventListener("submit", function (event) {
-        event.preventDefault();
-        showMessage(els.authError, "");
-        run("login", document.getElementById("email").value).then(function (data) {
-          applySession(data);
-          return loadOpinions();
-        }).then(function () { setView("home"); }).catch(function (error) { showMessage(els.authError, error.message); });
-      });
-      els.opinionForm.addEventListener("submit", function (event) {
-        event.preventDefault();
-        showMessage(els.formError, "");
-        if (!state.anonId) { setView("me"); return; }
-        var ask = document.getElementById("ask").value;
-        var others = document.getElementById("others").value;
-        var priority = Number(document.querySelector('input[name="priority"]:checked').value);
-        var request = state.editingId
-          ? run("updateOpinion", state.token, state.editingId, ask, others, priority)
-          : run("createOpinion", state.token, ask, others, priority);
-        request.then(function () {
-          state.editingId = ""; fillForm(null); return loadOpinions();
-        }).then(function () { setView("home"); }).catch(function (error) { showMessage(els.formError, error.message); });
-      });
-      function bindBoard(root) {
-        root.addEventListener("click", function (event) {
-          var open = event.target.closest("[data-open]");
-          if (open) { openDetail(open.getAttribute("data-open")); return; }
-          var editButton = event.target.closest(".edit-btn");
-          if (editButton) { startEdit(editButton.getAttribute("data-id")); return; }
-          var deleteButton = event.target.closest(".delete-btn");
-          if (deleteButton) {
-            var target = findItem(deleteButton.getAttribute("data-id"));
-            if (!target || !window.confirm(target.numberLabel + " 글을 삭제할까요?")) return;
-            run("deleteOpinion", state.token, target.id).then(function () { state.selectedId = ""; return loadOpinions(); }).then(function () { setView("home"); });
-            return;
-          }
-          var star = event.target.closest(".star-btn");
-          if (star) {
-            if (star.disabled) return;
-            run("rateOpinion", state.token, star.getAttribute("data-id"), Number(star.getAttribute("data-stars"))).then(loadOpinions).catch(function (error) { alert(error.message); });
-            return;
-          }
-          var commentDel = event.target.closest(".comment-del");
-          if (commentDel && window.confirm("이 댓글을 삭제할까요?")) {
-            run("deleteComment", state.token, commentDel.getAttribute("data-comment-id")).then(loadOpinions);
-          }
-        });
-        root.addEventListener("submit", function (event) {
-          var form = event.target.closest(".comment-form");
-          if (!form) return;
-          event.preventDefault();
-          var input = form.querySelector("input[name='body']");
-          run("addComment", state.token, form.getAttribute("data-id"), input.value).then(function () { input.value = ""; return loadOpinions(); }).catch(function (error) { alert(error.message); });
-        });
-      }
-      bindBoard(els.feed);
-      bindBoard(els.detail);
+    }
+    setView("home");
+    renderFeed();
+  });
+}
+
+els.logout.addEventListener("click", async () => {
+  try {
+    await run("logout", state.token);
+  } catch {
+    // ignore
+  }
+  clearSession();
+  state.topic = "all";
+  state.query = "";
+  state.editingCommentId = "";
+  if (els.search) els.search.value = "";
+  document.querySelector("#email").value = "";
+  fillForm(null);
+  showError(els.authError, "");
+  showError(els.formError, "");
+  renderAll();
+  await loadOpinions();
+  setView("me");
+});
+
+els.authForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  showError(els.authError, "");
+  try {
+    const data = await run("login", document.querySelector("#email").value);
+    state.token = data.token;
+    state.anonId = data.anonId;
+    state.role = data.role || "";
+    state.isAdmin = Boolean(data.isAdmin);
+    sessionStorage.setItem("voc_token", data.token);
+    renderIdentity();
+    await loadOpinions();
+    setView("home");
+  } catch (error) {
+    showError(els.authError, error.message);
+  }
+});
+
+els.opinionForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  showError(els.formError, "");
+  if (!state.anonId) {
+    setView("me");
+    return;
+  }
+  const payload = {
+    ask: document.querySelector("#ask").value,
+    others: document.querySelector("#others").value,
+    priority: Number(document.querySelector("input[name=\"priority\"]:checked").value),
+  };
+  try {
+    const result = state.editingId
+      ? await run("updateOpinion", state.token, state.editingId, payload.ask, payload.others, payload.priority)
+      : await run("createOpinion", state.token, payload.ask, payload.others, payload.priority);
+    if (result.googleForm?.ok) showError(els.formError, "게시했습니다.", true);
+    else if (result.googleForm && !result.googleForm.ok) {
+      showError(els.formError, `게시는 됐습니다. 폼 저장 실패: ${result.googleForm.error}`);
+    } else {
+      showError(els.formError, "게시했습니다.", true);
+    }
+    state.editingId = "";
+    fillForm(null);
+    await loadOpinions();
+    setView("home");
+  } catch (error) {
+    showError(els.formError, error.message);
+  }
+});
+
+function bindBoard(root) {
+  root.addEventListener("click", async (event) => {
+    const open = event.target.closest("[data-open]");
+    if (open) {
+      openDetail(open.getAttribute("data-open"));
+      return;
+    }
+    const editButton = event.target.closest(".edit-btn");
+    if (editButton) {
+      startEdit(editButton.dataset.id);
+      return;
+    }
+    const deleteButton = event.target.closest(".delete-btn");
+    if (deleteButton) {
+      const target = findItem(deleteButton.dataset.id);
+      if (!target || !window.confirm(`${target.numberLabel} 글을 삭제할까요?`)) return;
+      await run("deleteOpinion", state.token, target.id);
+      state.selectedId = "";
+      await loadOpinions();
       setView("home");
-      run("bootstrap", state.token).then(function (data) { applySession(data); return loadOpinions(); }).catch(function () { renderAll(); loadOpinions(); });
+      return;
+    }
+    const star = event.target.closest(".star-btn");
+    if (star) {
+      if (star.disabled) return;
+      await run("rateOpinion", state.token, star.dataset.id, Number(star.dataset.stars));
+      await loadOpinions();
+      return;
+    }
+    const vote = event.target.closest(".vote-btn");
+    if (vote) {
+      if (vote.disabled) return;
+      try {
+        await run("vote", state.token, vote.dataset.id);
+        await loadOpinions();
+      } catch (error) {
+        alert(error.message);
+      }
+      return;
+    }
+    const commentEdit = event.target.closest(".comment-edit-btn");
+    if (commentEdit) {
+      state.editingCommentId = commentEdit.dataset.commentId;
+      renderDetail();
+      return;
+    }
+    const commentDel = event.target.closest(".comment-del");
+    if (commentDel) {
+      if (!window.confirm("이 댓글을 삭제할까요?")) return;
+      await run("deleteComment", state.token, commentDel.dataset.commentId);
+      state.editingCommentId = "";
+      await loadOpinions();
+    }
+  });
+
+  root.addEventListener("submit", async (event) => {
+    const editForm = event.target.closest(".comment-edit");
+    if (editForm) {
+      event.preventDefault();
+      const input = editForm.querySelector("input[name='body']");
+      await run("updateComment", state.token, editForm.dataset.commentId, input.value);
+      state.editingCommentId = "";
+      await loadOpinions();
+      return;
+    }
+    const form = event.target.closest(".comment-form");
+    if (!form) return;
+    event.preventDefault();
+    const input = form.querySelector("input[name='body']");
+    await run("addComment", state.token, form.dataset.id, input.value);
+    input.value = "";
+    await loadOpinions();
+  });
+}
+
+bindBoard(els.feed);
+bindBoard(els.detail);
+if (els.myPostList) bindBoard(els.myPostList);
+if (els.myCommentList) bindBoard(els.myCommentList);
+run("bootstrap", state.token).then((data) => {
+  applySessionFromBootstrap(data);
+  return loadOpinions();
+}).catch(() => {
+  renderAll();
+  loadOpinions();
+});
+
     </script>
   </body>
 </html>

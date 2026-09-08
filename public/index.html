@@ -21,11 +21,26 @@
         <button type="button" class="tab active" data-sort="hot">인기</button>
         <button type="button" class="tab" data-sort="new">최신</button>
         <button type="button" class="tab" data-sort="all">전체</button>
-        <button type="button" class="tab" data-topic="all">토픽</button>
+        <button type="button" class="tab" data-mode="topic">토픽</button>
       </nav>
+      <div id="topic-bar" class="topic-bar hidden">
+        <button type="button" class="chip-tab active" data-topic="all">전체</button>
+        <button type="button" class="chip-tab" data-topic="0">Low</button>
+        <button type="button" class="chip-tab" data-topic="1">낮음</button>
+        <button type="button" class="chip-tab" data-topic="2">보통</button>
+        <button type="button" class="chip-tab" data-topic="3">높음</button>
+        <button type="button" class="chip-tab" data-topic="4">매우 높음</button>
+        <button type="button" class="chip-tab" data-topic="5">Super</button>
+        <button type="button" class="chip-tab" data-topic="form">Form</button>
+        <button type="button" class="chip-tab" data-topic="app">S&amp;E</button>
+        <button type="button" class="chip-tab" data-topic="mine">내 글</button>
+      </div>
 
       <main class="stage">
         <section id="view-home" class="view">
+          <label class="search-wrap">
+            <input id="search" type="search" placeholder="글, 익명 ID, 고유번호 검색" />
+          </label>
           <p id="board-meta" class="feed-count"></p>
           <div id="feed" class="feed"></div>
         </section>
@@ -68,8 +83,19 @@
             <p class="me-id">익명 <strong id="anon-label"></strong></p>
             <p id="role-label" class="chip role">User</p>
             <p class="hint">같은 이메일이면 항상 같은 익명 ID가 유지됩니다. 메일 주소는 공개되지 않습니다.</p>
-            <button type="button" id="logout" class="ghost">로그아웃</button>
+            <div class="me-actions">
+              <button type="button" id="my-posts-btn" class="ghost">내 글 보기</button>
+              <button type="button" id="logout" class="ghost">로그아웃</button>
+            </div>
           </div>
+          <section id="my-posts" class="me-card hidden">
+            <h2 class="subhead">내 글</h2>
+            <div id="my-post-list"></div>
+          </section>
+          <section id="my-comments" class="me-card hidden">
+            <h2 class="subhead">내 댓글</h2>
+            <div id="my-comment-list"></div>
+          </section>
           <section id="gate" class="me-card">
             <h2>로그인</h2>
             <p class="hint">이메일로 입장하면 고정 익명 ID가 부여됩니다.</p>

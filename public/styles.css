@@ -97,6 +97,67 @@ html, body {
   color: #fff;
 }
 
+.topic-bar {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.chip-tab {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chip-tab.active {
+  background: var(--yellow);
+  border-color: var(--yellow);
+  color: #111;
+}
+
+.search-wrap {
+  display: block;
+  padding: 10px 16px 0;
+}
+
+.search-wrap input {
+  background: #fff;
+}
+
+.vote-btn.on {
+  background: #111;
+  color: var(--yellow);
+  border-color: #111;
+}
+
+.me-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.me-list-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.me-list-item:last-child { border-bottom: 0; }
+.me-list-item strong { display: block; margin-bottom: 4px; }
+.me-list-item span { color: var(--muted); font-size: 12px; }
+
+.comment-edit { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 8px; }
+
 .stage { padding: 0 0 16px; }
 .view { min-height: calc(100vh - 180px); }
 .hidden { display: none !important; }
