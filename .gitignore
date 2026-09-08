@@ -1,0 +1,4 @@
+node_modules/
+data/.secret
+data/db.json
+data/google-responses.json
