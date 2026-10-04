@@ -91,7 +91,25 @@ export function createStore(filePath) {
         createdAt: new Date().toISOString(),
       };
       db.users.push(user);
+      const duplicate = db.users.find(
+        (row) => row.emailHash === emailHash && row.id !== user.id,
+      );
+      if (duplicate) {
+        db.users = db.users.filter((row) => row.id !== user.id);
+        await persist();
+        return duplicate;
+      }
       await persist();
+      return user;
+    },
+    async touchUserLogin(userId, loginEmail) {
+      const user = db.users.find((row) => row.id === userId);
+      if (!user) return null;
+      const normalized = String(loginEmail ?? "").trim().toLowerCase();
+      if (normalized && user.loginEmail !== normalized) {
+        user.loginEmail = normalized;
+        await persist();
+      }
       return user;
     },
     listOpinions() {
@@ -180,10 +198,18 @@ export function createStore(filePath) {
       await persist();
       return true;
     },
+    countComments(opinionId) {
+      return db.comments.filter((comment) => comment.opinionId === opinionId).length;
+    },
     listComments(opinionId) {
       return db.comments
         .filter((comment) => comment.opinionId === opinionId)
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    },
+    listCommentsByUser(userId) {
+      return db.comments
+        .filter((comment) => comment.userId === userId)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     },
     findCommentById(id) {
       return db.comments.find((comment) => comment.id === id) ?? null;
@@ -259,6 +285,13 @@ export function createStore(filePath) {
       return db.votes.filter((vote) => vote.opinionId === opinionId).length;
     },
     async addVote(userId, opinionId) {
+      if (
+        db.votes.some(
+          (vote) => vote.userId === userId && vote.opinionId === opinionId,
+        )
+      ) {
+        return null;
+      }
       const vote = {
         id: randomUUID(),
         userId,

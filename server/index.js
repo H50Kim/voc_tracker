@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -13,11 +13,19 @@ const secretFile = path.join(dataDir, ".secret");
 const dbFile = path.join(dataDir, "db.json");
 
 const PORT = Number(process.env.PORT) || 4173;
-const ADMIN_EMAIL = "andersona.kim@gmail.com";
+const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL ?? "andersona.kim@gmail.com")
+  .trim()
+  .toLowerCase();
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const COOKIE_SECURE =
+  process.env.COOKIE_SECURE === "true" || process.env.NODE_ENV === "production";
 
 const store = createStore(dbFile);
 let secret = "";
+let adminEmailHash = "";
+const googleResponsesFile = path.join(dataDir, "google-responses.json");
+let googleResponsesMtimeMs = -1;
+let googleImportBusy = false;
 
 async function loadSecret() {
   await mkdir(dataDir, { recursive: true });
@@ -41,8 +49,8 @@ function hashEmail(email) {
   return createHmac("sha256", secret).update(email).digest("hex");
 }
 
-function isAdmin(email) {
-  return normalizeEmail(email) === ADMIN_EMAIL;
+function isAdminHash(emailHash) {
+  return Boolean(emailHash && adminEmailHash && emailHash === adminEmailHash);
 }
 
 function makePostId(id) {
@@ -71,8 +79,8 @@ function formatDateTime(value) {
   return `${pick("year")}-${pick("month")}-${pick("day")} ${pick("hour")}:${pick("minute")}`;
 }
 
-function canManage(email, userId, opinion) {
-  if (isAdmin(email)) return true;
+function canManage(emailHash, userId, opinion) {
+  if (isAdminHash(emailHash)) return true;
   return Boolean(opinion && userId && opinion.userId === userId);
 }
 
@@ -85,8 +93,8 @@ function makeAnonId(emailHash) {
   return `VOC-${digest}`;
 }
 
-function signToken(userId, email) {
-  const payload = Buffer.from(JSON.stringify({ userId, email }), "utf8").toString(
+function signToken(userId, emailHash) {
+  const payload = Buffer.from(JSON.stringify({ userId, emailHash }), "utf8").toString(
     "base64url",
   );
   const signature = createHmac("sha256", `${secret}:token`)
@@ -97,7 +105,9 @@ function signToken(userId, email) {
 
 function verifyToken(token) {
   if (!token || !token.includes(".")) return null;
-  const [payload, signature] = token.split(".");
+  const dot = token.indexOf(".");
+  const payload = token.slice(0, dot);
+  const signature = token.slice(dot + 1);
   const expected = createHmac("sha256", `${secret}:token`)
     .update(payload)
     .digest("base64url");
@@ -108,9 +118,17 @@ function verifyToken(token) {
   }
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    return typeof data.userId === "string"
-      ? { userId: data.userId, email: typeof data.email === "string" ? data.email : "" }
-      : null;
+    if (typeof data.userId !== "string") return null;
+    if (typeof data.emailHash === "string" && data.emailHash) {
+      return { userId: data.userId, emailHash: data.emailHash };
+    }
+    if (typeof data.email === "string" && data.email) {
+      return {
+        userId: data.userId,
+        emailHash: hashEmail(normalizeEmail(data.email)),
+      };
+    }
+    return null;
   } catch {
     return null;
   }
@@ -132,7 +150,8 @@ function requireUser(req, res, next) {
     return;
   }
   req.user = user;
-  req.email = session.email;
+  req.emailHash = session.emailHash;
+  req.syncEmail = user.loginEmail || "";
   next();
 }
 
@@ -162,7 +181,7 @@ function summarizeRatings(opinionId, currentUserId) {
   };
 }
 
-function publicComment(comment, currentUserId, email = "") {
+function publicComment(comment, currentUserId, emailHash = "") {
   const author = store.findUserById(comment.userId);
   const mine = currentUserId === comment.userId;
   return {
@@ -172,11 +191,18 @@ function publicComment(comment, currentUserId, email = "") {
     createdAt: comment.createdAt,
     createdAtLabel: formatDateTime(comment.createdAt),
     mine,
-    canManage: isAdmin(email) || mine,
+    canManage: isAdminHash(emailHash) || mine,
   };
 }
 
-function publicOpinion(opinion, currentUserId, email = "") {
+function titleOfOpinion(opinion) {
+  return String(opinion?.ask || "")
+    .split("\n")[0]
+    .trim();
+}
+
+function publicOpinion(opinion, currentUserId, emailHash = "", options = {}) {
+  const includeComments = options.includeComments !== false;
   const author = store.findUserById(opinion.userId);
   const mine = currentUserId === opinion.userId;
   const rating = summarizeRatings(opinion.id, currentUserId);
@@ -195,22 +221,44 @@ function publicOpinion(opinion, currentUserId, email = "") {
     ratingCount: rating.count,
     myRating: rating.mine,
     mine,
-    canManage: canManage(email, currentUserId, opinion),
+    canManage: canManage(emailHash, currentUserId, opinion),
     source: opinion.source === "google" ? "google" : "app",
     createdAt: opinion.createdAt,
     createdAtLabel: formatDateTime(opinion.createdAt),
     updatedAt: opinion.updatedAt,
     updatedAtLabel: formatDateTime(opinion.updatedAt),
-    comments: store.listComments(opinion.id).map((comment) =>
-      publicComment(comment, currentUserId, email),
-    ),
+    commentCount: store.countComments(opinion.id),
+    comments: includeComments
+      ? store.listComments(opinion.id).map((comment) =>
+          publicComment(comment, currentUserId, emailHash),
+        )
+      : [],
   };
+}
+
+async function importGoogleRespondentsIfStale() {
+  let mtimeMs = 0;
+  try {
+    mtimeMs = (await stat(googleResponsesFile)).mtimeMs;
+  } catch (error) {
+    if (!error || error.code !== "ENOENT") throw error;
+    googleResponsesMtimeMs = 0;
+    return;
+  }
+  if (mtimeMs === googleResponsesMtimeMs || googleImportBusy) return;
+  googleImportBusy = true;
+  try {
+    await importGoogleRespondents();
+    googleResponsesMtimeMs = mtimeMs;
+  } finally {
+    googleImportBusy = false;
+  }
 }
 
 async function importGoogleRespondents() {
   let payload = { responses: [] };
   try {
-    payload = JSON.parse(await readFile(path.join(dataDir, "google-responses.json"), "utf8"));
+    payload = JSON.parse(await readFile(googleResponsesFile, "utf8"));
   } catch (error) {
     if (!error || error.code !== "ENOENT") throw error;
   }
@@ -253,15 +301,22 @@ async function syncGoogleForm(payload) {
   }
 }
 
+function cookieSuffix() {
+  return COOKIE_SECURE ? "; Secure" : "";
+}
+
 function setSessionCookie(res, token) {
   res.setHeader(
     "Set-Cookie",
-    `voc_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/`,
+    `voc_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/${cookieSuffix()}`,
   );
 }
 
 function clearSessionCookie(res) {
-  res.setHeader("Set-Cookie", "voc_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
+  res.setHeader(
+    "Set-Cookie",
+    `voc_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${cookieSuffix()}`,
+  );
 }
 
 const app = express();
@@ -289,38 +344,60 @@ app.post("/api/auth", async (req, res) => {
       anonId: makeAnonId(emailHash),
     });
   }
+  await store.touchUserLogin(user.id, email);
 
-  const token = signToken(user.id, email);
+  const token = signToken(user.id, emailHash);
   setSessionCookie(res, token);
   res.json({
     anonId: user.anonId,
     token,
-    role: isAdmin(email) ? "admin" : "user",
-    isAdmin: isAdmin(email),
+    role: isAdminHash(emailHash) ? "admin" : "user",
+    isAdmin: isAdminHash(emailHash),
   });
 });
 
 app.get("/api/me", requireUser, (req, res) => {
   res.json({
     anonId: req.user.anonId,
-    role: isAdmin(req.email) ? "admin" : "user",
-    isAdmin: isAdmin(req.email),
+    role: isAdminHash(req.emailHash) ? "admin" : "user",
+    isAdmin: isAdminHash(req.emailHash),
   });
 });
 
-app.get("/api/opinions", async (req, res) => {
-  await importGoogleRespondents();
+app.get("/api/me/comments", requireUser, (req, res) => {
+  const items = store.listCommentsByUser(req.user.id).map((comment) => {
+    const opinion = store.findOpinionById(comment.opinionId);
+    return {
+      ...publicComment(comment, req.user.id, req.emailHash),
+      opinionId: comment.opinionId,
+      numberLabel: formatNumber(opinion?.number),
+      title: titleOfOpinion(opinion) || "제목 없음",
+    };
+  });
+  res.json({ items });
+});
+
+app.get("/api/opinions/:id", async (req, res) => {
+  await importGoogleRespondentsIfStale();
+  const opinion = store.findOpinionById(req.params.id);
+  if (!opinion) {
+    res.status(404).json({ error: "의견을 찾을 수 없습니다." });
+    return;
+  }
   const session = verifyToken(readToken(req));
   const userId = session?.userId ?? "";
-  const email = session?.email ?? "";
+  const emailHash = session?.emailHash ?? "";
+  res.json({ item: publicOpinion(opinion, userId, emailHash) });
+});
+
+app.get("/api/opinions", async (req, res) => {
+  await importGoogleRespondentsIfStale();
+  const session = verifyToken(readToken(req));
+  const userId = session?.userId ?? "";
+  const emailHash = session?.emailHash ?? "";
   const items = store
     .listOpinions()
-    .map((item) => publicOpinion(item, userId, email))
-    .sort((a, b) => {
-      if (b.ratingAvg !== a.ratingAvg) return b.ratingAvg - a.ratingAvg;
-      if ((a.number || 0) !== (b.number || 0)) return (a.number || 0) - (b.number || 0);
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+    .map((item) => publicOpinion(item, userId, emailHash, { includeComments: false }));
   res.json({ items });
 });
 
@@ -338,7 +415,7 @@ app.post("/api/opinions", requireUser, async (req, res) => {
   }
 
   const googleForm = await syncGoogleForm({
-    email: req.email,
+    email: req.syncEmail,
     ask,
     others,
     priority,
@@ -351,7 +428,7 @@ app.post("/api/opinions", requireUser, async (req, res) => {
     priority,
   });
   res.status(201).json({
-    item: publicOpinion(opinion, req.user.id, req.email),
+    item: publicOpinion(opinion, req.user.id, req.emailHash),
     googleForm,
   });
 });
@@ -362,7 +439,7 @@ app.put("/api/opinions/:id", requireUser, async (req, res) => {
     res.status(404).json({ error: "의견을 찾을 수 없습니다." });
     return;
   }
-  if (!canManage(req.email, req.user.id, existing)) {
+  if (!canManage(req.emailHash, req.user.id, existing)) {
     res.status(403).json({ error: "이 의견을 수정할 권한이 없습니다." });
     return;
   }
@@ -380,7 +457,7 @@ app.put("/api/opinions/:id", requireUser, async (req, res) => {
   }
 
   const googleForm = await syncGoogleForm({
-    email: req.email,
+    email: req.syncEmail,
     ask,
     others,
     priority,
@@ -388,7 +465,7 @@ app.put("/api/opinions/:id", requireUser, async (req, res) => {
 
   const opinion = await store.updateOpinion(existing.id, { ask, others, priority });
   res.json({
-    item: publicOpinion(opinion, req.user.id, req.email),
+    item: publicOpinion(opinion, req.user.id, req.emailHash),
     googleForm,
   });
 });
@@ -399,7 +476,7 @@ app.delete("/api/opinions/:id", requireUser, async (req, res) => {
     res.status(404).json({ error: "의견을 찾을 수 없습니다." });
     return;
   }
-  if (!canManage(req.email, req.user.id, existing)) {
+  if (!canManage(req.emailHash, req.user.id, existing)) {
     res.status(403).json({ error: "이 의견을 삭제할 권한이 없습니다." });
     return;
   }
@@ -423,7 +500,7 @@ app.post("/api/opinions/:id/comments", requireUser, async (req, res) => {
     userId: req.user.id,
     body,
   });
-  res.status(201).json({ item: publicComment(comment, req.user.id, req.email) });
+  res.status(201).json({ item: publicComment(comment, req.user.id, req.emailHash) });
 });
 
 app.put("/api/comments/:id", requireUser, async (req, res) => {
@@ -432,7 +509,7 @@ app.put("/api/comments/:id", requireUser, async (req, res) => {
     res.status(404).json({ error: "댓글을 찾을 수 없습니다." });
     return;
   }
-  if (!isAdmin(req.email) && comment.userId !== req.user.id) {
+  if (!isAdminHash(req.emailHash) && comment.userId !== req.user.id) {
     res.status(403).json({ error: "이 댓글을 수정할 권한이 없습니다." });
     return;
   }
@@ -442,7 +519,7 @@ app.put("/api/comments/:id", requireUser, async (req, res) => {
     return;
   }
   const updated = await store.updateComment(comment.id, body);
-  res.json({ item: publicComment(updated, req.user.id, req.email) });
+  res.json({ item: publicComment(updated, req.user.id, req.emailHash) });
 });
 
 app.delete("/api/comments/:id", requireUser, async (req, res) => {
@@ -451,7 +528,7 @@ app.delete("/api/comments/:id", requireUser, async (req, res) => {
     res.status(404).json({ error: "댓글을 찾을 수 없습니다." });
     return;
   }
-  if (!isAdmin(req.email) && comment.userId !== req.user.id) {
+  if (!isAdminHash(req.emailHash) && comment.userId !== req.user.id) {
     res.status(403).json({ error: "이 댓글을 삭제할 권한이 없습니다." });
     return;
   }
@@ -475,7 +552,13 @@ app.post("/api/opinions/:id/rate", requireUser, async (req, res) => {
     return;
   }
   await store.upsertRating(req.user.id, opinion.id, stars);
-  res.json({ item: publicOpinion(opinion, req.user.id, req.email) });
+  const rating = summarizeRatings(opinion.id, req.user.id);
+  res.json({
+    id: opinion.id,
+    ratingAvg: rating.avg,
+    ratingCount: rating.count,
+    myRating: rating.mine,
+  });
 });
 
 app.post("/api/opinions/:id/vote", requireUser, async (req, res) => {
@@ -488,14 +571,17 @@ app.post("/api/opinions/:id/vote", requireUser, async (req, res) => {
     res.status(403).json({ error: "본인 의견에는 투표할 수 없습니다." });
     return;
   }
-  if (store.findVote(req.user.id, opinion.id)) {
+  const vote = await store.addVote(req.user.id, opinion.id);
+  if (!vote) {
     res.status(409).json({ error: "이미 이 의견에 투표했습니다. 투표는 한 번만 가능합니다." });
     return;
   }
-
-  await store.addVote(req.user.id, opinion.id);
   const updated = store.findOpinionById(opinion.id);
-  res.json({ item: publicOpinion(updated, req.user.id, req.email) });
+  res.json({
+    id: updated.id,
+    votes: store.countVotes(updated.id),
+    voted: true,
+  });
 });
 
 app.use((error, _req, res, _next) => {
@@ -504,8 +590,15 @@ app.use((error, _req, res, _next) => {
 });
 
 await loadSecret();
+adminEmailHash = hashEmail(normalizeEmail(ADMIN_EMAIL));
 await store.load();
 await importGoogleRespondents();
+try {
+  googleResponsesMtimeMs = (await stat(googleResponsesFile)).mtimeMs;
+} catch (error) {
+  if (!error || error.code !== "ENOENT") throw error;
+  googleResponsesMtimeMs = 0;
+}
 
 app.listen(PORT, () => {
   console.log(`VoC Tracker running at http://localhost:${PORT}`);

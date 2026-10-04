@@ -11,6 +11,7 @@ const state = {
   query: "",
   editingCommentId: "",
   items: [],
+  myComments: [],
 };
 
 const els = {
@@ -23,7 +24,6 @@ const els = {
   viewMe: document.querySelector("#view-me"),
   gate: document.querySelector("#gate"),
   meCard: document.querySelector("#me-card"),
-  identity: document.querySelector("#me-card"),
   anonLabel: document.querySelector("#anon-label"),
   roleLabel: document.querySelector("#role-label"),
   logout: document.querySelector("#logout"),
@@ -140,7 +140,7 @@ function visibleItems() {
   items.sort((a, b) => {
     if ((b.votes || 0) !== (a.votes || 0)) return (b.votes || 0) - (a.votes || 0);
     if (b.ratingAvg !== a.ratingAvg) return b.ratingAvg - a.ratingAvg;
-    return (b.comments?.length || 0) - (a.comments?.length || 0);
+    return commentCount(b) - commentCount(a);
   });
   return items;
 }
@@ -175,17 +175,27 @@ function renderIdentity() {
   renderMyActivity();
 }
 
-function myComments() {
-  return state.items.flatMap((item) =>
-    (item.comments || [])
-      .filter((comment) => comment.mine)
-      .map((comment) => ({ ...comment, opinionId: item.id, numberLabel: item.numberLabel, title: titleOf(item) })),
-  );
+function commentCount(item) {
+  if (typeof item.commentCount === "number") return item.commentCount;
+  return item.comments?.length || 0;
+}
+
+async function loadMyComments() {
+  if (!state.token) {
+    state.myComments = [];
+    return;
+  }
+  try {
+    const data = await api("/api/me/comments");
+    state.myComments = data.items || [];
+  } catch {
+    state.myComments = [];
+  }
 }
 
 function renderMyActivity() {
   const posts = state.items.filter((item) => item.mine);
-  const comments = myComments();
+  const comments = state.myComments;
   if (els.myPosts) els.myPosts.classList.toggle("hidden", !state.anonId);
   if (els.myComments) els.myComments.classList.toggle("hidden", !state.anonId);
   if (els.myPostList) {
@@ -193,7 +203,7 @@ function renderMyActivity() {
       ? posts
           .map(
             (item) =>
-              `<button type="button" class="me-list-item" data-open="${item.id}"><strong>${escapeHtml(item.numberLabel || "")} ${escapeHtml(titleOf(item))}</strong><span>${escapeHtml(relativeTime(item.createdAt, item.createdAtLabel))} · 댓글 ${(item.comments || []).length} · 공감 ${item.votes || 0}</span></button>`,
+              `<button type="button" class="me-list-item" data-open="${item.id}"><strong>${escapeHtml(item.numberLabel || "")} ${escapeHtml(titleOf(item))}</strong><span>${escapeHtml(relativeTime(item.createdAt, item.createdAtLabel))} · 댓글 ${commentCount(item)} · 공감 ${item.votes || 0}</span></button>`,
           )
           .join("")
       : `<p class="hint">작성한 글이 없습니다.</p>`;
@@ -291,7 +301,7 @@ function renderFeed() {
   }
   els.feed.innerHTML = items
     .map((item) => {
-      const comments = item.comments?.length || 0;
+      const comments = commentCount(item);
       return `<button type="button" class="post" data-open="${item.id}">
         <div class="post-top">
           <span class="company">${item.source === "google" ? "Form" : "S&E"}</span>
@@ -361,9 +371,22 @@ function renderAll() {
   if (state.view === "detail") renderDetail();
 }
 
-function openDetail(id) {
+async function refreshOpinionDetail(id) {
+  const { item } = await api(`/api/opinions/${id}`);
+  const index = state.items.findIndex((row) => row.id === id);
+  if (index >= 0) state.items[index] = item;
+  else state.items.push(item);
+  return item;
+}
+
+async function openDetail(id) {
   state.selectedId = id;
   setView("detail");
+  try {
+    await refreshOpinionDetail(id);
+  } catch {
+    // 목록에 있는 요약 데이터로라도 표시
+  }
   renderDetail();
 }
 
@@ -403,6 +426,14 @@ async function loadOpinions() {
   state.items = data.items || [];
   if (state.editingId && !findItem(state.editingId)) state.editingId = "";
   if (state.selectedId && !findItem(state.selectedId) && state.view === "detail") setView("home");
+  if (state.view === "detail" && state.selectedId && findItem(state.selectedId)) {
+    try {
+      await refreshOpinionDetail(state.selectedId);
+    } catch {
+      // ignore
+    }
+  }
+  await loadMyComments();
   renderAll();
 }
 
@@ -580,19 +611,32 @@ function bindBoard(root) {
     const star = event.target.closest(".star-btn");
     if (star) {
       if (star.disabled) return;
-      await api(`/api/opinions/${star.dataset.id}/rate`, {
+      const result = await api(`/api/opinions/${star.dataset.id}/rate`, {
         method: "POST",
         body: JSON.stringify({ stars: Number(star.dataset.stars) }),
       });
-      await loadOpinions();
+      const item = findItem(star.dataset.id);
+      if (item) {
+        item.ratingAvg = result.ratingAvg;
+        item.ratingCount = result.ratingCount;
+        item.myRating = result.myRating;
+      }
+      if (state.view === "detail") renderDetail();
+      else renderFeed();
       return;
     }
     const vote = event.target.closest(".vote-btn");
     if (vote) {
       if (vote.disabled) return;
       try {
-        await api(`/api/opinions/${vote.dataset.id}/vote`, { method: "POST" });
-        await loadOpinions();
+        const result = await api(`/api/opinions/${vote.dataset.id}/vote`, { method: "POST" });
+        const item = findItem(vote.dataset.id);
+        if (item) {
+          item.votes = result.votes;
+          item.voted = result.voted;
+        }
+        if (state.view === "detail") renderDetail();
+        else renderFeed();
       } catch (error) {
         alert(error.message);
       }
