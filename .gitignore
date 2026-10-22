@@ -1,4 +1,8 @@
 node_modules/
+computer_use/.venv/
+computer_use/**/__pycache__/
+computer_use/**/.pytest_cache/
+computer_use/**/*.egg-info/
 data/.secret
 data/db.json
 data/google-responses.json
