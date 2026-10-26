@@ -77,6 +77,36 @@ STRINGS = {
         "ko": "원격 세션 중지됨 — 연결 끊김 등으로 실행을 종료했습니다.",
         "en": "Remote session stopped — disconnected or unusable session.",
     },
+    "teach_replay_enable": {
+        "ko": "Teach & Replay 모드 (폐루프 대신 워크플로 녹화/재생)",
+        "en": "Teach & Replay mode (record/replay workflow instead of closed-loop)",
+    },
+    "teach_replay_group": {
+        "ko": "워크플로",
+        "en": "Workflow",
+    },
+    "teach_record_start": {"ko": "녹화 시작", "en": "Start record"},
+    "teach_record_stop": {"ko": "녹화 중지", "en": "Stop record"},
+    "teach_workflow_name": {"ko": "워크플로 이름", "en": "Workflow name"},
+    "teach_save": {"ko": "저장…", "en": "Save…"},
+    "teach_load": {"ko": "불러오기…", "en": "Load…"},
+    "teach_replay": {"ko": "재생", "en": "Replay"},
+    "teach_glean": {"ko": "Glean 도움말", "en": "Glean helper"},
+    "teach_recording_on": {"ko": "녹화 중 (클릭·특수키; 비밀번호/MFA/OTP는 저장하지 않음)", "en": "Recording (clicks/special keys; no password/MFA/OTP stored)"},
+    "teach_recording_off": {
+        "ko": "녹화 종료 — {count}단계",
+        "en": "Recording stopped — {count} step(s)",
+    },
+    "teach_loaded": {
+        "ko": "불러옴: {path} ({count}단계)",
+        "en": "Loaded: {path} ({count} step(s))",
+    },
+    "teach_replay_ok": {"ko": "재생 완료", "en": "Replay finished"},
+    "teach_replay_fail": {"ko": "재생 실패 (화면 검증 또는 단계 오류)", "en": "Replay failed (screen verify or step error)"},
+    "teach_mode_blocks_closed_loop": {
+        "ko": "Teach & Replay 모드에서는 폐루프 Start를 사용할 수 없습니다.",
+        "en": "Closed-loop Start is disabled in Teach & Replay mode.",
+    },
 }
 
 MODE_LABELS = {

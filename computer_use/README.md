@@ -39,6 +39,8 @@ Default pytest excludes `@pytest.mark.windows` tests (`addopts = -m "not windows
 
 GUI and real window handles require Windows manual testing — Project store `docs/windows-validation-checklist.md` (§11 + closed-loop GUI).
 
+**User manual (KO):** Project store [`docs/user-manual.md`](/cursor/stores/self/docs/user-manual.md) — install, Local/Browser/Remote modes, Teach & Replay, Ollama, ledger, safety, troubleshooting.
+
 ## Security
 
 - No auth bypass, no cookie/token extraction APIs.
@@ -52,6 +54,7 @@ GUI and real window handles require Windows manual testing — Project store `do
 - `src/computer_use/modes/` — local/browser/remote stubs
 - `src/computer_use/agents/` — pipeline facade (`AgentPipeline`)
 - `src/computer_use/ai/` — Phase 4 local LLM (Ollama), planner, interpret cache, extended validator
+- `src/computer_use/workflow/` — Teach & Replay recorder/replay, Glean helper (reference-only)
 
 ## Phase 4 — Local LLM (Ollama)
 

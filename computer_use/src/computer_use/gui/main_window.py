@@ -33,6 +33,7 @@ try:
     )
 
     from computer_use.gui.region_selector import RegionSelectorWidget
+    from computer_use.gui.teach_replay_panel import TeachReplayPanel
 
     _HAS_QT = True
 except ImportError:
@@ -111,6 +112,13 @@ if _HAS_QT:
             layout.addWidget(QLabel(t("ai_model_panel", lang)))
             layout.addWidget(self.ai_status)
             self._refresh_ai_status()
+
+            self.teach_panel = TeachReplayPanel(
+                lang=lang,
+                get_anchor_region=lambda: self._region,
+                append_log=self._append_log,
+            )
+            layout.addWidget(self.teach_panel)
 
             btn_row = QHBoxLayout()
             self.start_btn = QPushButton(t("start", lang))
@@ -296,6 +304,9 @@ if _HAS_QT:
             self._confirm_result = box.exec() == QMessageBox.StandardButton.Yes
 
         def on_start(self) -> None:
+            if self.teach_panel.is_teach_mode():
+                self.status.setText(t("teach_mode_blocks_closed_loop", self.lang))
+                return
             if self._controller.state.value != "idle":
                 return
             goal = self.instruction.text().strip()
