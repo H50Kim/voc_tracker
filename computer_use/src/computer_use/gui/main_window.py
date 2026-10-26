@@ -7,6 +7,8 @@ from computer_use.core.capture import ScreenCapture
 from computer_use.core.region import ScreenRegion
 from computer_use.core.validator import ResultValidator
 from computer_use.controllers.browser_controller import get_edge_enumerator
+from computer_use.controllers.remote_controller import get_remote_enumerator
+from computer_use.modes.remote import default_remote_controller
 from computer_use.core.window_enum import get_window_enumerator
 from computer_use.modes.browser import default_browser_controller
 from computer_use.gui.closed_loop_controller import ClosedLoopConfig, ClosedLoopController
@@ -47,8 +49,11 @@ if _HAS_QT:
             self.validator = ResultValidator()
             self.enumerator = get_window_enumerator()
             self._edge = get_edge_enumerator()
+            self._remote_enum = get_remote_enumerator()
             self._browser = default_browser_controller()
+            self._remote = default_remote_controller()
             self._region: ScreenRegion | None = None
+            self._remote_inner: ScreenRegion | None = None
             self._confirm_result: bool | None = None
             self._confirm_ready = False
 
@@ -79,6 +84,11 @@ if _HAS_QT:
             self.browser_warn.setWordWrap(True)
             self.browser_warn.setStyleSheet("color: #a60;")
             layout.addWidget(self.browser_warn)
+
+            self.remote_warn = QLabel(t("remote_warning", lang))
+            self.remote_warn.setWordWrap(True)
+            self.remote_warn.setStyleSheet("color: #06a;")
+            layout.addWidget(self.remote_warn)
 
             self.window_list = QListWidget()
             layout.addWidget(self.window_list)
@@ -152,8 +162,15 @@ if _HAS_QT:
             from computer_use.agent.types import Phase
 
             if phase == Phase.PAUSED:
-                self.status.setText(t("auth_pause_status", self.lang))
-                self._append_log(t("auth_pause_log", self.lang))
+                mode = self.mode_combo.currentData()
+                if mode == AutomationMode.REMOTE:
+                    self.status.setText(t("remote_pause_status", self.lang))
+                else:
+                    self.status.setText(t("auth_pause_status", self.lang))
+                    self._append_log(t("auth_pause_log", self.lang))
+                return
+            if phase == Phase.INCOMPLETE:
+                self.status.setText(t("remote_stop_status", self.lang))
                 return
             self.status.setText(f"Phase: {phase.value}")
 
@@ -172,6 +189,7 @@ if _HAS_QT:
         def _on_mode_changed(self) -> None:
             mode = self.mode_combo.currentData()
             self.browser_warn.setVisible(mode == AutomationMode.BROWSER)
+            self.remote_warn.setVisible(mode == AutomationMode.REMOTE)
             self.refresh_windows()
 
         def refresh_windows(self) -> None:
@@ -189,11 +207,39 @@ if _HAS_QT:
                 if self.window_list.count() == 0:
                     self.window_list.addItem(t("browser_no_edge", self.lang))
                 return
+            if mode == AutomationMode.REMOTE:
+                for win in self._remote_enum.list_remote_windows():
+                    kind = win.client_kind.value.upper()
+                    self.window_list.addItem(
+                        f"[{kind}] {win.title} (#{win.handle})"
+                    )
+                if self.window_list.count() == 0:
+                    self.window_list.addItem(t("remote_no_client", self.lang))
+                return
             for win in self.enumerator.list_windows():
                 self.window_list.addItem(f"{win.title} (#{win.handle})")
 
         def _on_region(self, region: ScreenRegion) -> None:
             self._region = region
+            mode = self.mode_combo.currentData()
+            handle = self._selected_window_handle()
+            if mode == AutomationMode.REMOTE and handle and handle > 0:
+                binding = self._remote.binding_from_gui_selection(
+                    window_handle=handle,
+                    user_screen_region=region,
+                )
+                if binding is not None:
+                    self._remote_inner = binding.inner_relative
+                    inner = self._remote_inner
+                    self.status.setText(
+                        f"Remote inner: {inner.left},{inner.top} "
+                        f"{inner.width}x{inner.height} (window #{handle})"
+                    )
+                    return
+                self._remote_inner = None
+                self.status.setText(t("remote_region_outside", self.lang))
+                return
+            self._remote_inner = None
             self.status.setText(
                 f"Region: {region.left},{region.top} {region.width}x{region.height}"
             )
@@ -251,17 +297,34 @@ if _HAS_QT:
                 region = ScreenRegion(0, 0, min(400, w), min(300, h))
             mode = self.mode_combo.currentData()
             handle = self._selected_window_handle()
+            remote_inner = None
             if mode == AutomationMode.BROWSER:
                 if handle is None or handle <= 0:
                     self.status.setText(t("browser_pick_edge", self.lang))
                     return
                 if self._edge.focus_window(handle):
                     self._append_log(f"Focused Edge #{handle}")
+            elif mode == AutomationMode.REMOTE:
+                if handle is None or handle <= 0:
+                    self.status.setText(t("remote_pick_client", self.lang))
+                    return
+                binding = self._remote.binding_from_gui_selection(
+                    window_handle=handle,
+                    user_screen_region=region,
+                )
+                if binding is None:
+                    self.status.setText(t("remote_region_outside", self.lang))
+                    return
+                remote_inner = binding.inner_relative
+                self._remote_inner = remote_inner
+                if self._remote_enum.focus_window(handle):
+                    self._append_log(f"Focused remote client #{handle}")
             config = ClosedLoopConfig(
                 goal=goal,
                 mode=mode,
                 region=region,
                 window_handle=handle,
+                remote_inner_region=remote_inner,
                 dry_run=sys.platform != "win32",
             )
             if self._controller.start(config):

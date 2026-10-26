@@ -22,6 +22,8 @@ from computer_use.policy.policy_guard import DEFAULT_POLICY, PolicyGuard
 
 if TYPE_CHECKING:
     from computer_use.controllers.browser_controller import BrowserController
+    from computer_use.controllers.remote_controller import RemoteController
+    from computer_use.vision.coordinate_mapper import CoordinateMapper
 
 ConfirmationHandler = Callable[[Action, str], SafetyDecision]
 
@@ -148,6 +150,8 @@ def make_phase1_adapters(
     mode: AutomationMode = AutomationMode.LOCAL,
     window_handle: int | None = None,
     browser_controller: BrowserController | None = None,
+    remote_controller: RemoteController | None = None,
+    remote_inner_region: ScreenRegion | None = None,
     request_confirmation: ConfirmationHandler | None = None,
 ) -> AdapterBundle:
     capture = ScreenCapture()
@@ -156,6 +160,30 @@ def make_phase1_adapters(
     _mode = mode
     _window_handle = window_handle
     _browser = browser_controller
+    _remote = remote_controller
+    _remote_inner = remote_inner_region
+    _mapper: CoordinateMapper | None = None
+
+    def _refresh_remote_mapper() -> CoordinateMapper | None:
+        nonlocal _mapper
+        if _mode != AutomationMode.REMOTE or _remote is None or _window_handle is None:
+            return None
+        if _remote_inner is None:
+            return None
+        mapper = _remote.coordinate_mapper(
+            window_handle=_window_handle,
+            inner_relative=_remote_inner,
+            user_region=region,
+        )
+        if mapper is None:
+            _mapper = None
+            return None
+        if _mapper is not None:
+            refreshed = _remote.refresh_mapper(_window_handle, _mapper)
+            if refreshed is not None:
+                mapper = refreshed
+        _mapper = mapper
+        return _mapper
 
     def _effective_region() -> ScreenRegion | None:
         if _mode == AutomationMode.BROWSER and _browser is not None:
@@ -163,15 +191,28 @@ def make_phase1_adapters(
                 window_handle=_window_handle,
                 user_region=region,
             )
+        if _mode == AutomationMode.REMOTE and _remote is not None:
+            return _remote.capture_region_for(
+                window_handle=_window_handle,
+                inner_relative=_remote_inner,
+                user_region=region,
+            )
         return region
 
     def observe() -> Observation:
+        if _mode == AutomationMode.REMOTE:
+            _refresh_remote_mapper()
         eff = _effective_region()
         if eff is not None:
             image = capture.capture_region(eff)
             frame = f"{_mode.value}:region:{eff.left},{eff.top}"
             if _window_handle:
                 frame = f"{frame}:hwnd:{_window_handle}"
+            if _mode == AutomationMode.REMOTE and _remote_inner is not None:
+                frame = (
+                    f"{frame}:inner:{_remote_inner.left},{_remote_inner.top},"
+                    f"{_remote_inner.width}x{_remote_inner.height}"
+                )
             return Observation(frame_id=frame, payload=image)
         return safe_observe(capture=capture, frame_id=_mode.value)
 
@@ -191,16 +232,42 @@ def make_phase1_adapters(
 
     def execute(action: Action) -> ExecutionOutcome:
         eff = _effective_region()
+        screen_x, screen_y = action.x, action.y
         if (
             eff is not None
             and action.x is not None
             and action.y is not None
-            and _mode == AutomationMode.BROWSER
+            and _mode in (AutomationMode.BROWSER, AutomationMode.REMOTE)
         ):
-            if not (
+            in_capture_bounds = (
                 eff.left <= action.x < eff.right and eff.top <= action.y < eff.bottom
-            ):
+            )
+            if _mode == AutomationMode.REMOTE:
+                mapper = _refresh_remote_mapper()
+                if mapper is not None:
+                    if in_capture_bounds:
+                        rel_x = action.x - eff.left
+                        rel_y = action.y - eff.top
+                    else:
+                        rel_x, rel_y = action.x, action.y
+                    mapped = mapper.capture_relative_to_screen(rel_x, rel_y)
+                    if mapped is None:
+                        return ExecutionOutcome.UNKNOWN
+                    screen_x, screen_y = mapped
+                elif not in_capture_bounds:
+                    return ExecutionOutcome.UNKNOWN
+            elif not in_capture_bounds:
                 return ExecutionOutcome.UNKNOWN
+        if screen_x is not None and screen_y is not None:
+            mapped_action = Action(
+                kind=action.kind,
+                semantic_operation_key=action.semantic_operation_key,
+                description=action.description,
+                target_id=action.target_id,
+                x=screen_x,
+                y=screen_y,
+            )
+            return safe_execute(mapped_action, controller=controller)
         return safe_execute(action, controller=controller)
 
     def verify(

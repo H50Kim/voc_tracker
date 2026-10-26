@@ -49,6 +49,30 @@ STRINGS = {
         "ko": "재개됨 — 화면 재관찰(REOBSERVE)",
         "en": "Resumed — re-observe (REOBSERVE)",
     },
+    "remote_warning": {
+        "ko": "Remote 모드: RDP/Citrix/Horizon 클라이언트 창만 사용 (원격 VM 에이전트 설치 없음, 비전 루프)",
+        "en": "Remote mode: RDP/Citrix/Horizon client window only (no remote agent; visual loop)",
+    },
+    "remote_no_client": {
+        "ko": "(실행 중인 원격 데스크톱 클라이언트 창 없음)",
+        "en": "(No remote desktop client windows)",
+    },
+    "remote_pick_client": {
+        "ko": "Remote 모드: RDP/Citrix/Horizon 창을 목록에서 선택하세요.",
+        "en": "Remote mode: select a remote client window from the list.",
+    },
+    "remote_region_outside": {
+        "ko": "드래그 영역이 원격 창과 겹치지 않습니다.",
+        "en": "Drag region does not overlap the remote client window.",
+    },
+    "remote_pause_status": {
+        "ko": "원격 세션 일시정지 — 연결/잠금/최소화/검은 화면을 확인한 뒤 재개하세요.",
+        "en": "Remote session paused — fix disconnect/lock/minimize/black screen, then Resume.",
+    },
+    "remote_stop_status": {
+        "ko": "원격 세션 중지됨 — 연결 끊김 등으로 실행을 종료했습니다.",
+        "en": "Remote session stopped — disconnected or unusable session.",
+    },
 }
 
 MODE_LABELS = {

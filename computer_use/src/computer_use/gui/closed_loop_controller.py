@@ -38,6 +38,7 @@ class ClosedLoopConfig:
     mode: AutomationMode = AutomationMode.LOCAL
     region: ScreenRegion | None = None
     window_handle: int | None = None
+    remote_inner_region: ScreenRegion | None = None
     dry_run: bool = True
     policy: AgentPolicy = field(default_factory=AgentPolicy)
     ledger_path: Path | None = None
@@ -77,6 +78,7 @@ class ClosedLoopController:
         self._context: LoopContext | None = None
         self._config: ClosedLoopConfig | None = None
         self._auth_reobserve_pending = False
+        self._remote_health_stop = False
 
     @property
     def state(self) -> RunnerState:
@@ -180,10 +182,15 @@ class ClosedLoopController:
                 self.log(f"Focused window #{config.window_handle}")
 
         browser_ctrl = None
+        remote_ctrl = None
         if config.mode == AutomationMode.BROWSER:
             from computer_use.modes.browser import default_browser_controller
 
             browser_ctrl = default_browser_controller()
+        if config.mode == AutomationMode.REMOTE:
+            from computer_use.modes.remote import default_remote_controller
+
+            remote_ctrl = default_remote_controller()
 
         if config.adapters is not None:
             adapters = config.adapters
@@ -195,6 +202,8 @@ class ClosedLoopController:
                 mode=config.mode,
                 window_handle=config.window_handle,
                 browser_controller=browser_ctrl,
+                remote_controller=remote_ctrl,
+                remote_inner_region=config.remote_inner_region,
                 request_confirmation=self._request_confirmation,
             )
 
@@ -226,6 +235,37 @@ class ClosedLoopController:
                         self._state = RunnerState.PAUSED
                     self._pause_event.clear()
                     self.log(f"Auth pause: {auth.reason}")
+                    if self._on_phase:
+                        self._on_phase(ctx.phase, None)
+                    continue
+
+            if (
+                remote_ctrl is not None
+                and config.window_handle
+                and self._state == RunnerState.RUNNING
+            ):
+                from computer_use.controllers.remote_controller import SessionHealthAction
+
+                last_image = None
+                if ctx.last_observation and ctx.last_observation.payload is not None:
+                    last_image = ctx.last_observation.payload
+                health = remote_ctrl.check_session_health(
+                    config.window_handle,
+                    latest_capture=last_image,
+                )
+                if health is not None:
+                    if health.action == SessionHealthAction.STOP:
+                        self._remote_health_stop = True
+                        self.log(f"Remote session stop: {health.reason}")
+                        self._stop_event.set()
+                        if self._on_phase:
+                            self._on_phase(Phase.INCOMPLETE, None)
+                        break
+                    ctx.phase = Phase.PAUSED
+                    with self._lock:
+                        self._state = RunnerState.PAUSED
+                    self._pause_event.clear()
+                    self.log(f"Remote session pause: {health.reason}")
                     if self._on_phase:
                         self._on_phase(ctx.phase, None)
                     continue

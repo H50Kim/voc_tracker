@@ -53,3 +53,15 @@ def test_edge_window_enumerator_smoke():
     for w in wins:
         assert w.handle > 0
         assert w.title
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="requires Windows")
+def test_remote_window_enumerator_smoke():
+    from computer_use.controllers.remote_controller import Win32RemoteWindowEnumerator
+
+    enum = Win32RemoteWindowEnumerator()
+    wins = enum.list_remote_windows()
+    assert isinstance(wins, list)
+    for w in wins:
+        assert w.handle > 0
+        assert w.title
