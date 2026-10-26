@@ -2,6 +2,19 @@
 
 VOC Tracker repo 내 **독립 Python 패키지**. 기존 Node/Apps Script 앱과 무관.
 
+## Quick start
+
+| Phase | Capability |
+|-------|------------|
+| 1 | Capture, region, input, policy, GUI shell |
+| 1.5 | Closed-loop agent (`agent/loop.py`), ledger, §13 tests |
+| 2 | Edge HWND attach, MFA auth pause (no browser launch) |
+| 3 | RDP/Citrix/Horizon window + relative coordinate loop |
+| 4 | Ollama planner/interpret hooks (`ai/`, `agents/pipeline.py`) |
+| 5 | Teach & Replay + Glean reference helper (`workflow/`) |
+
+**Closed-loop (GUI):** natural-language goal → Start; ledger at `~/.computer_use/agent_ledger.json`. **Teach & Replay:** enable panel toggle → record → save JSON under `~/.computer_use/workflows/`.
+
 ## Phase 1 scope
 
 - Window enumeration (Windows: Win32, Linux: stub for tests)
@@ -45,13 +58,18 @@ GUI and real window handles require Windows manual testing — Project store `do
 
 - No auth bypass, no cookie/token extraction APIs.
 - Do **not** add Edge `launch()` or CDP unless explicitly approved; Browser mode must attach to existing windows only (Phase 2).
+- Optional: `COMPUTER_USE_ALLOW_CDP=1` only with explicit operator opt-in.
+- External LLM: requires `COMPUTER_USE_ALLOW_EXTERNAL_LLM=1` (default localhost Ollama only).
 
 ## Layout (§9)
 
 - `src/computer_use/core/` — capture, input, windows, regions, validator
 - `src/computer_use/policy/` — policy_guard
-- `src/computer_use/gui/` — PySide6 shell (KO/EN strings)
-- `src/computer_use/modes/` — local/browser/remote stubs
+- `src/computer_use/agent/` — closed-loop types, ledger, adapters, `run_computer_use`
+- `src/computer_use/controllers/` — browser (Edge), remote (RDP/Citrix)
+- `src/computer_use/vision/` — coordinate mapper, screen diff, template match
+- `src/computer_use/gui/` — PySide6 shell, closed-loop controller, teach/replay panel
+- `src/computer_use/modes/` — local, browser, remote mode wiring
 - `src/computer_use/agents/` — pipeline facade (`AgentPipeline`)
 - `src/computer_use/ai/` — Phase 4 local LLM (Ollama), planner, interpret cache, extended validator
 - `src/computer_use/workflow/` — Teach & Replay recorder/replay, Glean helper (reference-only)
