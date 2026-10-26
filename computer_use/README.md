@@ -29,7 +29,15 @@ pip install -e ".[dev]"
 pytest
 ```
 
-GUI and real window handles require Windows manual testing (see Project `docs/gap-analysis.md` §11).
+Default pytest excludes `@pytest.mark.windows` tests (`addopts = -m "not windows"` in `pyproject.toml`).
+
+| Command | Where | Purpose |
+|---------|-------|---------|
+| `pytest` or `pytest -m "not windows"` | Linux CI / dev | Unit tests + §13 closed-loop (no Win32) |
+| `pytest -m windows` | Windows PC | Win32 enumeration, PySide6 import smoke |
+| `pytest -m ""` | Windows (optional) | Full suite including Windows-marked tests |
+
+GUI and real window handles require Windows manual testing — Project store `docs/windows-validation-checklist.md` (§11 + closed-loop GUI).
 
 ## Security
 
