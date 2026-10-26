@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Callable, Protocol
 
 from computer_use.agent.types import (
     Action,
@@ -15,8 +15,12 @@ from computer_use.agent.types import (
 )
 from computer_use.core.capture import ScreenCapture
 from computer_use.core.input_control import InputController
+from computer_use.core.region import ScreenRegion
 from computer_use.core.validator import ResultValidator
+from computer_use.modes.types import AutomationMode
 from computer_use.policy.policy_guard import DEFAULT_POLICY, PolicyGuard
+
+ConfirmationHandler = Callable[[Action, str], SafetyDecision]
 
 
 class ObserveFn(Protocol):
@@ -137,13 +141,23 @@ def make_phase1_adapters(
     *,
     dry_run: bool = True,
     policy: PolicyGuard | None = None,
+    region: ScreenRegion | None = None,
+    mode: AutomationMode = AutomationMode.LOCAL,
+    request_confirmation: ConfirmationHandler | None = None,
 ) -> AdapterBundle:
     capture = ScreenCapture()
     controller = InputController(policy=policy or DEFAULT_POLICY, dry_run=dry_run)
     validator = ResultValidator()
+    _mode = mode
 
     def observe() -> Observation:
-        return safe_observe(capture=capture)
+        if region is not None:
+            image = capture.capture_region(region)
+            return Observation(
+                frame_id=f"{_mode.value}:region:{region.left},{region.top}",
+                payload=image,
+            )
+        return safe_observe(capture=capture, frame_id=_mode.value)
 
     def interpret(observation: Observation) -> Interpretation:
         return safe_interpret(observation)
@@ -152,7 +166,12 @@ def make_phase1_adapters(
         return default_generate_candidates(interpretation, goal=goal)
 
     def safety(action: Action, *, goal: str) -> SafetyDecision:
-        return policy_safety_gate(action, goal=goal, policy=policy)
+        decision = policy_safety_gate(action, goal=goal, policy=policy)
+        if not decision.approved:
+            return decision
+        if request_confirmation is not None:
+            return request_confirmation(action, goal)
+        return decision
 
     def execute(action: Action) -> ExecutionOutcome:
         return safe_execute(action, controller=controller)

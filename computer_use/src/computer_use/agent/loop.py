@@ -47,7 +47,7 @@ def _bind_action_coordinates(action: Action, interpretation) -> Action:
     return action
 
 
-def _restore_from_ledger(ctx: LoopContext, snap: LedgerSnapshot) -> None:
+def restore_from_ledger(ctx: LoopContext, snap: LedgerSnapshot) -> None:
     ctx.pending_operation = snap.pending_operation
     ctx.execute_budget_used = snap.execute_budget_used
     ctx.result_query_count = snap.result_query_count
@@ -165,6 +165,15 @@ def step_computer_use(
                 phase=ctx.phase,
                 context=ctx,
                 trace=[Phase.SAFETY_GATE, Phase.RESULT_RECHECK],
+            )
+        if ui_recovery:
+            ctx.approved_for_execute = action
+            ctx.phase = Phase.EXECUTE
+            return RunResult(
+                outcome=None,
+                phase=ctx.phase,
+                context=ctx,
+                trace=[Phase.SAFETY_GATE, Phase.EXECUTE],
             )
         decision = adapters.safety_gate(action, goal=goal)
         if not decision.approved:
@@ -400,7 +409,7 @@ def run_computer_use(
 
     snap = ledger.load()
     if snap is not None and context is None:
-        _restore_from_ledger(ctx, snap)
+        restore_from_ledger(ctx, snap)
 
     for _ in range(max_steps):
         if ctx.phase in (Phase.SUCCESS, Phase.INCOMPLETE):
