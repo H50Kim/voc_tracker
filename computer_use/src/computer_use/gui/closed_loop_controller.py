@@ -76,6 +76,7 @@ class ClosedLoopController:
         self._lock = threading.Lock()
         self._context: LoopContext | None = None
         self._config: ClosedLoopConfig | None = None
+        self._auth_reobserve_pending = False
 
     @property
     def state(self) -> RunnerState:
@@ -125,9 +126,22 @@ class ClosedLoopController:
                 return
             self._state = RunnerState.RUNNING
             if self._config is not None:
-                self._config.ui_recovery = ui_recovery or self._config.ui_recovery
+                self._config.ui_recovery = (
+                    ui_recovery or self._config.ui_recovery or self._auth_reobserve_pending
+                )
+            if self._auth_reobserve_pending and self._context is not None:
+                self._context.phase = Phase.OBSERVE
+                self._auth_reobserve_pending = False
         self._pause_event.set()
         self.log("Resumed")
+
+    @property
+    def auth_reobserve_pending(self) -> bool:
+        return self._auth_reobserve_pending
+
+    def resume_after_auth_pause(self) -> None:
+        """User completed MFA/sign-in — continue with REOBSERVE at OBSERVE."""
+        self.resume(ui_recovery=True)
 
     def stop(self, *, emergency: bool = False) -> None:
         with self._lock:
@@ -165,6 +179,12 @@ class ClosedLoopController:
             if self._focus_window(config.window_handle):
                 self.log(f"Focused window #{config.window_handle}")
 
+        browser_ctrl = None
+        if config.mode == AutomationMode.BROWSER:
+            from computer_use.modes.browser import default_browser_controller
+
+            browser_ctrl = default_browser_controller()
+
         if config.adapters is not None:
             adapters = config.adapters
         else:
@@ -173,6 +193,8 @@ class ClosedLoopController:
                 policy=self._policy_guard,
                 region=config.region,
                 mode=config.mode,
+                window_handle=config.window_handle,
+                browser_controller=browser_ctrl,
                 request_confirmation=self._request_confirmation,
             )
 
@@ -190,6 +212,23 @@ class ClosedLoopController:
                 break
             if ctx.phase in terminal:
                 break
+
+            if (
+                browser_ctrl is not None
+                and config.window_handle
+                and self._state == RunnerState.RUNNING
+            ):
+                auth = browser_ctrl.check_auth_for_handle(config.window_handle)
+                if auth is not None:
+                    ctx.phase = Phase.PAUSED
+                    self._auth_reobserve_pending = True
+                    with self._lock:
+                        self._state = RunnerState.PAUSED
+                    self._pause_event.clear()
+                    self.log(f"Auth pause: {auth.reason}")
+                    if self._on_phase:
+                        self._on_phase(ctx.phase, None)
+                    continue
 
             result = step_computer_use(
                 goal,

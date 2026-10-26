@@ -20,6 +20,7 @@ class Phase(str, Enum):
     RESULT_RECHECK = "result_recheck"
     SUCCESS = "success"
     INCOMPLETE = "incomplete"
+    PAUSED = "paused"  # Auth/MFA or user hold; resume → REOBSERVE (OBSERVE)
     WAIT = "wait"
 
 

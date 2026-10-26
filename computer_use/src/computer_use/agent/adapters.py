@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Protocol
+from typing import TYPE_CHECKING, Callable, Protocol
 
 from computer_use.agent.types import (
     Action,
@@ -19,6 +19,9 @@ from computer_use.core.region import ScreenRegion
 from computer_use.core.validator import ResultValidator
 from computer_use.modes.types import AutomationMode
 from computer_use.policy.policy_guard import DEFAULT_POLICY, PolicyGuard
+
+if TYPE_CHECKING:
+    from computer_use.controllers.browser_controller import BrowserController
 
 ConfirmationHandler = Callable[[Action, str], SafetyDecision]
 
@@ -143,20 +146,33 @@ def make_phase1_adapters(
     policy: PolicyGuard | None = None,
     region: ScreenRegion | None = None,
     mode: AutomationMode = AutomationMode.LOCAL,
+    window_handle: int | None = None,
+    browser_controller: BrowserController | None = None,
     request_confirmation: ConfirmationHandler | None = None,
 ) -> AdapterBundle:
     capture = ScreenCapture()
     controller = InputController(policy=policy or DEFAULT_POLICY, dry_run=dry_run)
     validator = ResultValidator()
     _mode = mode
+    _window_handle = window_handle
+    _browser = browser_controller
+
+    def _effective_region() -> ScreenRegion | None:
+        if _mode == AutomationMode.BROWSER and _browser is not None:
+            return _browser.capture_region_for(
+                window_handle=_window_handle,
+                user_region=region,
+            )
+        return region
 
     def observe() -> Observation:
-        if region is not None:
-            image = capture.capture_region(region)
-            return Observation(
-                frame_id=f"{_mode.value}:region:{region.left},{region.top}",
-                payload=image,
-            )
+        eff = _effective_region()
+        if eff is not None:
+            image = capture.capture_region(eff)
+            frame = f"{_mode.value}:region:{eff.left},{eff.top}"
+            if _window_handle:
+                frame = f"{frame}:hwnd:{_window_handle}"
+            return Observation(frame_id=frame, payload=image)
         return safe_observe(capture=capture, frame_id=_mode.value)
 
     def interpret(observation: Observation) -> Interpretation:
@@ -174,6 +190,17 @@ def make_phase1_adapters(
         return decision
 
     def execute(action: Action) -> ExecutionOutcome:
+        eff = _effective_region()
+        if (
+            eff is not None
+            and action.x is not None
+            and action.y is not None
+            and _mode == AutomationMode.BROWSER
+        ):
+            if not (
+                eff.left <= action.x < eff.right and eff.top <= action.y < eff.bottom
+            ):
+                return ExecutionOutcome.UNKNOWN
         return safe_execute(action, controller=controller)
 
     def verify(

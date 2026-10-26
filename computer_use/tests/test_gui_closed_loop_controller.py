@@ -16,8 +16,10 @@ from computer_use.agent.types import (
     PendingOperation,
     SafetyDecision,
 )
+from computer_use.controllers.browser_controller import StubEdgeWindowEnumerator
 from computer_use.gui.closed_loop_controller import ClosedLoopConfig, ClosedLoopController, RunnerState
 from computer_use.gui.log_mask import mask_log_line
+from computer_use.modes.types import AutomationMode
 
 
 def _stub_config(**kwargs) -> ClosedLoopConfig:
@@ -99,6 +101,41 @@ def test_controller_loads_pending_without_auto_execute():
     finished.wait(timeout=5.0)
     assert finished.is_set()
     assert "pending-1" not in exec_calls
+
+
+def test_browser_auth_pause_triggers_runner_paused(monkeypatch):
+    class SignInStub(StubEdgeWindowEnumerator):
+        def get_window_title(self, handle: int) -> str:
+            return "Sign in to your account - Microsoft Edge"
+
+    monkeypatch.setattr(
+        "computer_use.modes.browser.default_browser_controller",
+        lambda **_: __import__(
+            "computer_use.controllers.browser_controller",
+            fromlist=["BrowserController"],
+        ).BrowserController(enumerator=SignInStub()),
+    )
+    finished = threading.Event()
+    logs: list[str] = []
+    controller = ClosedLoopController(
+        on_log=logs.append,
+        on_finished=lambda _r: finished.set(),
+        focus_window=lambda _h: True,
+    )
+    config = ClosedLoopConfig(
+        goal="sso test",
+        mode=AutomationMode.BROWSER,
+        window_handle=9001,
+        dry_run=True,
+        max_steps=5,
+        adapters=stub_adapters(),
+    )
+    assert controller.start(config)
+    time.sleep(0.3)
+    assert controller.state == RunnerState.PAUSED
+    assert any("Auth pause" in line for line in logs)
+    controller.stop()
+    controller.join(timeout=3.0)
 
 
 def test_confirmation_denied_blocks_run():

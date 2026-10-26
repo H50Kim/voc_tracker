@@ -26,8 +26,28 @@ STRINGS = {
     "paused_status": {"ko": "일시정지됨", "en": "Paused"},
     "resumed_status": {"ko": "재개됨", "en": "Resumed"},
     "browser_warning": {
-        "ko": "Browser 모드: 기존 Edge 창만 사용 (launch 금지)",
-        "en": "Browser mode: existing Edge only (no launch)",
+        "ko": "Browser 모드: 기존 Edge 창만 사용 (launch/CDP/cookie 추출 금지)",
+        "en": "Browser mode: existing Edge only (no launch/CDP/cookie harvest)",
+    },
+    "browser_no_edge": {
+        "ko": "(실행 중인 Microsoft Edge 창 없음)",
+        "en": "(No running Microsoft Edge windows)",
+    },
+    "browser_pick_edge": {
+        "ko": "Browser 모드: Edge 창을 목록에서 선택하세요.",
+        "en": "Browser mode: select an Edge window from the list.",
+    },
+    "auth_pause_status": {
+        "ko": "인증 대기 — Edge에서 로그인/MFA를 완료한 뒤 재개하세요.",
+        "en": "Auth pause — complete sign-in/MFA in Edge, then Resume.",
+    },
+    "auth_pause_log": {
+        "ko": "MFA/로그인 감지: 자동 일시정지 (세션/쿠키 추출 없음)",
+        "en": "Sign-in/MFA detected: auto-paused (no session/cookie harvest)",
+    },
+    "auth_resume_status": {
+        "ko": "재개됨 — 화면 재관찰(REOBSERVE)",
+        "en": "Resumed — re-observe (REOBSERVE)",
     },
 }
 

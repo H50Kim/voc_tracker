@@ -103,6 +103,9 @@ def step_computer_use(
         ctx.phase = Phase.OBSERVE
         return RunResult(outcome=None, phase=ctx.phase, context=ctx, trace=[Phase.WAIT, Phase.OBSERVE])
 
+    if phase == Phase.PAUSED:
+        return RunResult(outcome=None, phase=ctx.phase, context=ctx, trace=[Phase.PAUSED])
+
     if phase == Phase.OBSERVE:
         ctx.last_observation = adapters.observe()
         ctx.phase = Phase.INTERPRET

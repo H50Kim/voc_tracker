@@ -41,3 +41,15 @@ def test_pyside6_gui_import():
     from computer_use.gui.main_window import MainWindow  # noqa: F401
 
     assert MainWindow is not None
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="requires Windows")
+def test_edge_window_enumerator_smoke():
+    from computer_use.controllers.browser_controller import Win32EdgeWindowEnumerator
+
+    enum = Win32EdgeWindowEnumerator()
+    wins = enum.list_edge_windows()
+    assert isinstance(wins, list)
+    for w in wins:
+        assert w.handle > 0
+        assert w.title

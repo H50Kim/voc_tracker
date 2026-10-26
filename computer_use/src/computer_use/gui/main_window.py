@@ -6,7 +6,9 @@ import sys
 from computer_use.core.capture import ScreenCapture
 from computer_use.core.region import ScreenRegion
 from computer_use.core.validator import ResultValidator
+from computer_use.controllers.browser_controller import get_edge_enumerator
 from computer_use.core.window_enum import get_window_enumerator
+from computer_use.modes.browser import default_browser_controller
 from computer_use.gui.closed_loop_controller import ClosedLoopConfig, ClosedLoopController
 from computer_use.gui.paths import default_ledger_path
 from computer_use.gui.strings import MODE_LABELS, t
@@ -44,6 +46,8 @@ if _HAS_QT:
             self.capture = ScreenCapture()
             self.validator = ResultValidator()
             self.enumerator = get_window_enumerator()
+            self._edge = get_edge_enumerator()
+            self._browser = default_browser_controller()
             self._region: ScreenRegion | None = None
             self._confirm_result: bool | None = None
             self._confirm_ready = False
@@ -145,6 +149,12 @@ if _HAS_QT:
             self.log_panel.append(line)
 
         def _on_phase_transition(self, phase, _result) -> None:
+            from computer_use.agent.types import Phase
+
+            if phase == Phase.PAUSED:
+                self.status.setText(t("auth_pause_status", self.lang))
+                self._append_log(t("auth_pause_log", self.lang))
+                return
             self.status.setText(f"Phase: {phase.value}")
 
         def _on_run_finished(self, result) -> None:
@@ -162,9 +172,23 @@ if _HAS_QT:
         def _on_mode_changed(self) -> None:
             mode = self.mode_combo.currentData()
             self.browser_warn.setVisible(mode == AutomationMode.BROWSER)
+            self.refresh_windows()
 
         def refresh_windows(self) -> None:
             self.window_list.clear()
+            mode = self.mode_combo.currentData()
+            if mode == AutomationMode.BROWSER:
+                try:
+                    self._browser.assert_attach_only()
+                except Exception as exc:
+                    self.status.setText(str(exc))
+                    return
+                for win in self._edge.list_edge_windows():
+                    tab = f" — tab: {win.tab_hint}" if win.tab_hint else ""
+                    self.window_list.addItem(f"{win.title}{tab} (#{win.handle})")
+                if self.window_list.count() == 0:
+                    self.window_list.addItem(t("browser_no_edge", self.lang))
+                return
             for win in self.enumerator.list_windows():
                 self.window_list.addItem(f"{win.title} (#{win.handle})")
 
@@ -225,11 +249,19 @@ if _HAS_QT:
             if region is None:
                 w, h = self.capture.primary_monitor_size()
                 region = ScreenRegion(0, 0, min(400, w), min(300, h))
+            mode = self.mode_combo.currentData()
+            handle = self._selected_window_handle()
+            if mode == AutomationMode.BROWSER:
+                if handle is None or handle <= 0:
+                    self.status.setText(t("browser_pick_edge", self.lang))
+                    return
+                if self._edge.focus_window(handle):
+                    self._append_log(f"Focused Edge #{handle}")
             config = ClosedLoopConfig(
                 goal=goal,
-                mode=self.mode_combo.currentData(),
+                mode=mode,
                 region=region,
-                window_handle=self._selected_window_handle(),
+                window_handle=handle,
                 dry_run=sys.platform != "win32",
             )
             if self._controller.start(config):
@@ -242,6 +274,10 @@ if _HAS_QT:
 
         def on_resume(self) -> None:
             ctx = self._controller.context
+            if self._controller.auth_reobserve_pending:
+                self._controller.resume_after_auth_pause()
+                self.status.setText(t("auth_resume_status", self.lang))
+                return
             at_safety = ctx is not None and ctx.phase.value == "safety_gate"
             self._controller.resume(ui_recovery=at_safety)
             self.status.setText(t("resumed_status", self.lang))
