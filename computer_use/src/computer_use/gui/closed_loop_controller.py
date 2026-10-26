@@ -18,6 +18,7 @@ from computer_use.gui.log_mask import mask_log_line
 from computer_use.gui.paths import default_ledger_path
 from computer_use.modes.types import AutomationMode
 from computer_use.policy.policy_guard import PolicyGuard
+from computer_use.agents.pipeline import AgentPipeline
 
 ConfirmationHandler = Callable[[Action, str], SafetyDecision]
 LogHandler = Callable[[str], None]
@@ -79,6 +80,8 @@ class ClosedLoopController:
         self._config: ClosedLoopConfig | None = None
         self._auth_reobserve_pending = False
         self._remote_health_stop = False
+        self._agent_pipeline = AgentPipeline()
+        self._agent_pipeline.startup()
 
     @property
     def state(self) -> RunnerState:
@@ -95,6 +98,10 @@ class ClosedLoopController:
 
     def load_startup_snapshot(self) -> LedgerSnapshot | None:
         return self._ledger.load()
+
+    @property
+    def agent_pipeline(self) -> AgentPipeline:
+        return self._agent_pipeline
 
     def log(self, message: str) -> None:
         line = mask_log_line(message)
@@ -205,6 +212,7 @@ class ClosedLoopController:
                 remote_controller=remote_ctrl,
                 remote_inner_region=config.remote_inner_region,
                 request_confirmation=self._request_confirmation,
+                agent_pipeline=self._agent_pipeline,
             )
 
         goal = config.goal.strip() or "(empty goal)"

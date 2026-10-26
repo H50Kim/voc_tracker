@@ -105,6 +105,13 @@ if _HAS_QT:
             self.instruction.setPlaceholderText(t("natural_language", lang))
             layout.addWidget(self.instruction)
 
+            self.ai_status = QLabel("")
+            self.ai_status.setWordWrap(True)
+            self.ai_status.setStyleSheet("color: #444; font-size: 11px;")
+            layout.addWidget(QLabel(t("ai_model_panel", lang)))
+            layout.addWidget(self.ai_status)
+            self._refresh_ai_status()
+
             btn_row = QHBoxLayout()
             self.start_btn = QPushButton(t("start", lang))
             self.pause_btn = QPushButton(t("pause", lang))
@@ -140,6 +147,10 @@ if _HAS_QT:
             self.refresh_windows()
             self._on_mode_changed()
             self._load_ledger_startup()
+
+        def _refresh_ai_status(self) -> None:
+            status = self._controller.agent_pipeline.model_status
+            self.ai_status.setText(status)
 
         def _load_ledger_startup(self) -> None:
             snap = self._controller.load_startup_snapshot()
@@ -330,6 +341,10 @@ if _HAS_QT:
             if self._controller.start(config):
                 self._set_controls_running(True)
                 self._append_log("Closed-loop run started")
+                self._refresh_ai_status()
+                rec = self._controller.agent_pipeline.model_manager.recommendation
+                if rec:
+                    self._append_log(f"AI planner model: {rec.text_model} ({rec.notes})")
 
         def on_pause(self) -> None:
             self._controller.pause()

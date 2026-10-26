@@ -50,4 +50,21 @@ GUI and real window handles require Windows manual testing — Project store `do
 - `src/computer_use/policy/` — policy_guard
 - `src/computer_use/gui/` — PySide6 shell (KO/EN strings)
 - `src/computer_use/modes/` — local/browser/remote stubs
-- `src/computer_use/agents/` — planner pipeline stubs
+- `src/computer_use/agents/` — pipeline facade (`AgentPipeline`)
+- `src/computer_use/ai/` — Phase 4 local LLM (Ollama), planner, interpret cache, extended validator
+
+## Phase 4 — Local LLM (Ollama)
+
+Planner/Perception only; executor stays coordinate/policy deterministic.
+
+| Env | Default | Meaning |
+|-----|---------|---------|
+| `OLLAMA_HOST` | `http://127.0.0.1:11434` | Ollama base URL |
+| `COMPUTER_USE_AI_ENABLED` | `1` | `0` → stub interpret/plan |
+| `COMPUTER_USE_ALLOW_EXTERNAL_LLM` | off | `1` → allow non-localhost LLM (company data) |
+| `COMPUTER_USE_VISION` | off | `1` → optional vision model hook (never text-only as vision) |
+| `COMPUTER_USE_OLLAMA_TEXT_MODEL` | auto | Override text planner model name |
+| `LLAMA_CPP_SERVER_URL` | probe | Optional llama.cpp server |
+| `COMPUTER_USE_VERIFY_FILE` | — | `result_query` file-exists hook (tests/dev) |
+
+**Windows manual:** install [Ollama](https://ollama.com/download), `ollama pull llama3.2` (and optional `llava` for vision). GUI shows model status on startup.

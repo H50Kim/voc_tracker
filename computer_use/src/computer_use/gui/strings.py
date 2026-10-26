@@ -23,6 +23,10 @@ STRINGS = {
         "en": "Execute this action?\nAction: {description}\nGoal: {goal}",
     },
     "goal_required": {"ko": "자연어 목표를 입력하세요.", "en": "Enter a natural language goal."},
+    "ai_model_panel": {
+        "ko": "로컬 LLM (Ollama) — 상태/권장 모델",
+        "en": "Local LLM (Ollama) — status & recommendation",
+    },
     "paused_status": {"ko": "일시정지됨", "en": "Paused"},
     "resumed_status": {"ko": "재개됨", "en": "Resumed"},
     "browser_warning": {

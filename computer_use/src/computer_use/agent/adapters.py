@@ -80,7 +80,16 @@ def safe_observe(*, capture: ScreenCapture | None = None, frame_id: str = "live"
 
 
 def safe_interpret(observation: Observation) -> Interpretation:
-    return Interpretation(summary=f"frame:{observation.frame_id}", targets={})
+    """Deterministic stub when AI pipeline is disabled."""
+    from computer_use.ai.interpret_service import observation_fingerprint
+
+    fp = observation_fingerprint(observation)
+    return Interpretation(
+        summary=f"frame:{observation.frame_id}",
+        targets={},
+        fingerprint=fp,
+        confidence=0.0,
+    )
 
 
 def default_generate_candidates(interpretation: Interpretation, *, goal: str) -> list[Action]:
@@ -153,10 +162,17 @@ def make_phase1_adapters(
     remote_controller: RemoteController | None = None,
     remote_inner_region: ScreenRegion | None = None,
     request_confirmation: ConfirmationHandler | None = None,
+    use_ai: bool | None = None,
+    agent_pipeline=None,
 ) -> AdapterBundle:
     capture = ScreenCapture()
     controller = InputController(policy=policy or DEFAULT_POLICY, dry_run=dry_run)
+    from computer_use.ai.llm_policy import ai_pipeline_enabled
+    from computer_use.ai.result_validator import ExtendedResultValidator
+
     validator = ResultValidator()
+    extended_validator = ExtendedResultValidator(core=validator)
+    _ai_enabled = ai_pipeline_enabled() if use_ai is None else use_ai
     _mode = mode
     _window_handle = window_handle
     _browser = browser_controller
@@ -216,10 +232,57 @@ def make_phase1_adapters(
             return Observation(frame_id=frame, payload=image)
         return safe_observe(capture=capture, frame_id=_mode.value)
 
+    _interpret_fn = None
+    _generate_fn = None
+    _glean_log: list[str] = []
+
+    if _ai_enabled:
+        from computer_use.agents.pipeline import AgentPipeline
+        from computer_use.ai.interpret_service import InterpretConfig, build_interpret_fn
+        from computer_use.ai.ollama_client import OllamaClient
+        from computer_use.ai.planner_adapters import make_generate_candidates_fn
+        from computer_use.ai.task_planner import TaskPlanner
+        from computer_use.ai.glean_helper import suggest_glean_search_in_edge
+
+        pipeline = agent_pipeline or AgentPipeline()
+        if not pipeline.model_manager.hardware:
+            pipeline.startup()
+        ollama = pipeline.model_manager.ollama or OllamaClient()
+        rec = pipeline.model_manager.recommendation
+        text_model = rec.text_model if rec else "llama3.2"
+        interpret_cfg = InterpretConfig(
+            window_handle=_window_handle,
+            model_manager=pipeline.model_manager,
+            ollama=ollama,
+        )
+        _interpret_fn = build_interpret_fn(interpret_cfg)
+        planner = TaskPlanner(client=ollama, text_model=text_model)
+        _plan_holder: dict[str, object] = {"plan": None}
+        _step_holder: dict[str, int] = {"index": 0}
+        _generate_fn = make_generate_candidates_fn(
+            planner,
+            plan_holder=_plan_holder,  # type: ignore[arg-type]
+            step_index_holder=_step_holder,
+        )
+
     def interpret(observation: Observation) -> Interpretation:
+        if _interpret_fn is not None:
+            return _interpret_fn(observation)
         return safe_interpret(observation)
 
     def generate(interpretation: Interpretation, *, goal: str) -> list[Action]:
+        if _browser is not None and _mode == AutomationMode.BROWSER:
+            from computer_use.ai.glean_helper import suggest_glean_search_in_edge
+
+            suggestion = suggest_glean_search_in_edge(
+                goal,
+                browser=_browser,
+                preferred_handle=_window_handle,
+            )
+            if suggestion is not None and suggestion.message not in _glean_log:
+                _glean_log.append(suggestion.message)
+        if _generate_fn is not None:
+            return _generate_fn(interpretation, goal=goal)
         return default_generate_candidates(interpretation, goal=goal)
 
     def safety(action: Action, *, goal: str) -> SafetyDecision:
@@ -276,9 +339,25 @@ def make_phase1_adapters(
         before: Observation | None,
         after: Observation | None,
     ) -> ExecutionOutcome:
-        return safe_verify(action, before=before, after=after, validator=validator)
+        outcome = safe_verify(action, before=before, after=after, validator=validator)
+        if outcome == ExecutionOutcome.SUCCESS:
+            return outcome
+        if before and after and before.payload is not None and after.payload is not None:
+            hook = extended_validator.validate_screen_change(before.payload, after.payload)
+            if hook.passed:
+                return ExecutionOutcome.SUCCESS
+        return outcome
 
-    def result_query(_pending_semantic_key: str) -> ExecutionOutcome:
+    def result_query(pending_semantic_key: str) -> ExecutionOutcome:
+        import os
+
+        expect_path = os.environ.get("COMPUTER_USE_VERIFY_FILE", "").strip()
+        if expect_path:
+            hook = extended_validator.validate_file_exists(expect_path)
+            if hook.passed:
+                return ExecutionOutcome.SUCCESS
+        if pending_semantic_key.startswith("plan:glean"):
+            return ExecutionOutcome.UNKNOWN
         return ExecutionOutcome.UNKNOWN
 
     return AdapterBundle(

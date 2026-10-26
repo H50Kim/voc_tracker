@@ -107,6 +107,10 @@ class Observation:
 class Interpretation:
     summary: str
     targets: dict[str, tuple[int, int]]
+    confidence: float = 0.0
+    fingerprint: str = ""
+    uia_labels: dict[str, str] = field(default_factory=dict)
+    from_cache: bool = False
 
 
 @dataclass
