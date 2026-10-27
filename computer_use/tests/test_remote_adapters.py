@@ -32,7 +32,9 @@ def test_remote_observe_frame_id_includes_inner(mock_capture_cls):
 
 @patch("computer_use.agent.adapters.ScreenCapture")
 def test_remote_execute_maps_capture_relative_coords(mock_capture_cls):
-    mock_capture_cls.return_value = MagicMock()
+    mock_capture_cls.return_value.capture_region.return_value = Image.new(
+        "RGB", (400, 300)
+    )
     remote = RemoteController(enumerator=StubRemoteWindowEnumerator())
     inner = ScreenRegion(0, 0, 400, 300)
     adapters = make_phase1_adapters(

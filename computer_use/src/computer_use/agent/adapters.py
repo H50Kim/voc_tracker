@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Protocol
 
@@ -13,6 +15,9 @@ from computer_use.agent.types import (
     Observation,
     SafetyDecision,
 )
+from computer_use.vision.coordinate_engine import CaptureMetadataCache, build_capture_metadata
+from computer_use.vision.coordinate_engine import CoordinateTransformEngine
+from computer_use.vision.target_resolver import ResolveOutcome, TargetResolver, TargetResolverConfig
 from computer_use.core.capture import ScreenCapture
 from computer_use.core.input_control import InputController
 from computer_use.core.region import ScreenRegion
@@ -26,6 +31,8 @@ if TYPE_CHECKING:
     from computer_use.vision.coordinate_mapper import CoordinateMapper
 
 ConfirmationHandler = Callable[[Action, str], SafetyDecision]
+
+_logger = logging.getLogger(__name__)
 
 
 class ObserveFn(Protocol):
@@ -179,6 +186,46 @@ def make_phase1_adapters(
     _remote = remote_controller
     _remote_inner = remote_inner_region
     _mapper: CoordinateMapper | None = None
+    _last_interpretation: Interpretation | None = None
+    _meta_cache = CaptureMetadataCache()
+
+    def _build_transform(mapper: CoordinateMapper | None):
+        if _mode == AutomationMode.REMOTE and mapper is not None:
+            return mapper.transform_engine(window_handle=_window_handle or 0)
+        eff = _effective_region()
+        if eff is None:
+            return CoordinateTransformEngine(capture_region=eff)
+        return CoordinateTransformEngine(capture_region=eff)
+
+    def _attach_capture_meta(obs: Observation) -> Observation:
+        from computer_use.ai.interpret_service import observation_fingerprint
+
+        eff = _effective_region()
+        if eff is None or obs.payload is None:
+            return obs
+        fp = observation_fingerprint(obs)
+        mapper = _refresh_remote_mapper() if _mode == AutomationMode.REMOTE else None
+        wg = mapper.window_geometry(window_handle=_window_handle or 0) if mapper else None
+        inner = _remote_inner if _mode == AutomationMode.REMOTE else None
+
+        def _build() -> object:
+            return build_capture_metadata(
+                capture_region=eff,
+                fingerprint=fp,
+                image_width=obs.payload.size[0],
+                image_height=obs.payload.size[1],
+                window_geometry=wg,
+                inner_relative=inner,
+            )
+
+        geom_hash = wg.geometry_hash() if wg else ""
+        meta = _meta_cache.get_or_build(
+            fingerprint=fp,
+            geometry_hash=geom_hash,
+            build=_build,
+        )
+        obs.capture_meta = meta
+        return obs
 
     def _refresh_remote_mapper() -> CoordinateMapper | None:
         nonlocal _mapper
@@ -229,8 +276,10 @@ def make_phase1_adapters(
                     f"{frame}:inner:{_remote_inner.left},{_remote_inner.top},"
                     f"{_remote_inner.width}x{_remote_inner.height}"
                 )
-            return Observation(frame_id=frame, payload=image)
-        return safe_observe(capture=capture, frame_id=_mode.value)
+            obs = Observation(frame_id=frame, payload=image)
+            return _attach_capture_meta(obs)
+        obs = safe_observe(capture=capture, frame_id=_mode.value)
+        return _attach_capture_meta(obs)
 
     _interpret_fn = None
     _generate_fn = None
@@ -266,9 +315,12 @@ def make_phase1_adapters(
         )
 
     def interpret(observation: Observation) -> Interpretation:
+        nonlocal _last_interpretation
         if _interpret_fn is not None:
-            return _interpret_fn(observation)
-        return safe_interpret(observation)
+            _last_interpretation = _interpret_fn(observation)
+            return _last_interpretation
+        _last_interpretation = safe_interpret(observation)
+        return _last_interpretation
 
     def generate(interpretation: Interpretation, *, goal: str) -> list[Action]:
         if _browser is not None and _mode == AutomationMode.BROWSER:
@@ -294,43 +346,51 @@ def make_phase1_adapters(
         return decision
 
     def execute(action: Action) -> ExecutionOutcome:
-        eff = _effective_region()
-        screen_x, screen_y = action.x, action.y
-        if (
-            eff is not None
-            and action.x is not None
-            and action.y is not None
-            and _mode in (AutomationMode.BROWSER, AutomationMode.REMOTE)
-        ):
-            in_capture_bounds = (
-                eff.left <= action.x < eff.right and eff.top <= action.y < eff.bottom
+        if action.kind == ActionKind.CLICK:
+            t0 = time.perf_counter()
+            fresh = observe()
+            mapper = _refresh_remote_mapper() if _mode == AutomationMode.REMOTE else None
+            transform = (
+                mapper.transform_engine(window_handle=_window_handle or 0)
+                if mapper is not None
+                else _build_transform(None)
             )
-            if _mode == AutomationMode.REMOTE:
-                mapper = _refresh_remote_mapper()
-                if mapper is not None:
-                    if in_capture_bounds:
-                        rel_x = action.x - eff.left
-                        rel_y = action.y - eff.top
-                    else:
-                        rel_x, rel_y = action.x, action.y
-                    mapped = mapper.capture_relative_to_screen(rel_x, rel_y)
-                    if mapped is None:
-                        return ExecutionOutcome.UNKNOWN
-                    screen_x, screen_y = mapped
-                elif not in_capture_bounds:
-                    return ExecutionOutcome.UNKNOWN
-            elif not in_capture_bounds:
+            resolver = TargetResolver(
+                TargetResolverConfig(
+                    window_handle=_window_handle,
+                    allow_interpretation_fallback=_ai_enabled,
+                )
+            )
+            resolution = resolver.resolve_click(
+                action,
+                fresh,
+                interpretation=_last_interpretation,
+                transform=transform,
+                capture_meta=fresh.capture_meta,
+            )
+            _logger.debug(
+                "target_resolve outcome=%s conf=%.2f ms=%.1f reason=%s",
+                resolution.outcome.value,
+                resolution.confidence,
+                (time.perf_counter() - t0) * 1000.0,
+                resolution.reason,
+            )
+            if resolution.outcome != ResolveOutcome.RESOLVED:
                 return ExecutionOutcome.UNKNOWN
-        if screen_x is not None and screen_y is not None:
+            if resolution.screen_x is None or resolution.screen_y is None:
+                return ExecutionOutcome.UNKNOWN
             mapped_action = Action(
                 kind=action.kind,
                 semantic_operation_key=action.semantic_operation_key,
                 description=action.description,
                 target_id=action.target_id,
-                x=screen_x,
-                y=screen_y,
+                x=resolution.screen_x,
+                y=resolution.screen_y,
+                fingerprint=action.fingerprint,
+                operation_id=action.operation_id,
             )
             return safe_execute(mapped_action, controller=controller)
+
         return safe_execute(action, controller=controller)
 
     def verify(

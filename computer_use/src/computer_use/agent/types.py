@@ -101,6 +101,7 @@ class AgentPolicy:
 class Observation:
     frame_id: str
     payload: Any = None
+    capture_meta: Any = None  # vision.coordinate_engine.CaptureMetadata when set
 
 
 @dataclass

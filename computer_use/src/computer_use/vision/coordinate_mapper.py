@@ -6,6 +6,10 @@ from dataclasses import dataclass
 
 from computer_use.controllers.browser_controller import intersect_capture_region
 from computer_use.core.region import ScreenRegion
+from computer_use.vision.coordinate_engine import (
+    CoordinateTransformEngine,
+    WindowGeometry,
+)
 
 
 @dataclass(frozen=True)
@@ -88,6 +92,22 @@ class CoordinateMapper:
             window_rect=new_rect,
             inner_relative=self.inner_relative,
             user_screen_region=self.user_screen_region,
+        )
+
+    def transform_engine(self, *, window_handle: int = 0, dpi_scale: float = 1.0) -> CoordinateTransformEngine:
+        return CoordinateTransformEngine.from_mapper_context(
+            window_rect=self.window_rect,
+            inner_relative=self.inner_relative,
+            capture_region=self.capture_region(),
+            window_handle=window_handle,
+            dpi_scale=dpi_scale,
+        )
+
+    def window_geometry(self, *, window_handle: int = 0, dpi_scale: float = 1.0) -> WindowGeometry:
+        return WindowGeometry(
+            handle=window_handle,
+            outer_rect=self.window_rect,
+            dpi_scale=dpi_scale,
         )
 
 
