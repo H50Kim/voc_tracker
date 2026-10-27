@@ -28,3 +28,8 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+  "windows: requires Windows (Win32, GUI, or non-dry input)",
+]
+# Linux CI / dev default: exclude Windows-only integration tests.
+addopts = '-m "not windows"'

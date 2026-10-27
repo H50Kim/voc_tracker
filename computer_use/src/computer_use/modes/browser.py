@@ -1,4 +1,4 @@
-"""Browser (Edge) mode — Phase 2. No launch() or CDP in Phase 1."""
+"""Browser (Edge) mode — attach to running windows only (Phase 2)."""
 
 from dataclasses import dataclass
 
@@ -14,3 +14,14 @@ class BrowserModePolicy:
 
 def edge_attach_policy() -> BrowserModePolicy:
     return BrowserModePolicy()
+
+
+def default_browser_controller(*, allow_cdp_user_opt_in: bool = False):
+    """Shared attach-only controller (lazy import avoids modes ↔ controllers cycle)."""
+    from computer_use.controllers.browser_controller import BrowserController, get_edge_enumerator
+
+    return BrowserController(
+        policy=edge_attach_policy(),
+        enumerator=get_edge_enumerator(),
+        allow_cdp_user_opt_in=allow_cdp_user_opt_in,
+    )
